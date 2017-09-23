@@ -36,17 +36,50 @@ class WaypointUpdater(object):
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
+        self.waypoints = None
 
         rospy.spin()
 
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        if self.waypoints:
+            position = msg.pose
+
+            theta = math.asin(position.orientation.z) * 2
+            current_x = position.position.x
+            current_y = position.position.y
+            # simulating a position just ahead of the vehicle
+            future_x = math.cos(theta) * 0.0001 + current_x
+            future_y = math.sin(theta) * 0.0001 + current_y
+
+            closest_index = 0
+            closest_waypoint = None
+            closest_distance = 1e99
+            for i, waypoint in enumerate(self.waypoints.waypoints):
+                this_x = waypoint.pose.pose.position.x
+                this_y = waypoint.pose.pose.position.y
+                this_distance = self.orthogonal_distance(this_x, this_y, current_x, current_y)
+                if this_distance < closest_distance:
+                    closest_index = i
+                    closest_waypoint = waypoint
+                    closest_distance = this_distance
+            output = Lane()
+            output.header = self.waypoints.header
+            num_waypoints = len(self.waypoints.waypoints)
+            if closest_distance > self.orthogonal_distance(closest_waypoint.pose.pose.position.x,
+                                                           closest_waypoint.pose.pose.position.y,
+                                                           future_x, future_y):
+                output.waypoints = self.waypoints.waypoints[
+                                   closest_index:(closest_index + LOOKAHEAD_WPS) % num_waypoints]
+            else: # closest waypoint is behind, so use next waypoint
+                output.waypoints = self.waypoints.waypoints[
+                                   (closest_index + 1) % num_waypoints :(closest_index + LOOKAHEAD_WPS + 1) %
+                                                                       num_waypoints]
+            self.final_waypoints_pub.publish(output)
+        else:
+            rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
 
     def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+        self.waypoints = waypoints
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -69,6 +102,9 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
+
+    def orthogonal_distance(self, x1, y1, x2, y2):
+        return math.sqrt(math.pow(x1-x2, 2) + math.pow(y1-y2, 2))
 
 
 if __name__ == '__main__':
