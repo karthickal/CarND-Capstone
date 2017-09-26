@@ -20,15 +20,15 @@ class Controller(object):
         rospy.Subscriber('/kd', Float32, self.kd_callback) # D
 
 	# init controlers
-	self.pid_acceleration  = PID(5.0, 0.1, 0.02) # PID for acceleration
+	self.pid_acceleration  = PID(3.0, 0.5, 0.01) # PID for acceleration
 
 	# init low-pass filters (lpf) to filter high frequency signals and smooth 
-        self.lpf = LowPassFilter(0.2, 0.1)
+        self.lpf = LowPassFilter(0.5, 0.5)
 
 	# init YawController to obtain steering yaw. 
         self.yaw_control  = YawController(wheel_base=wheel_base, 
                                           steer_ratio=steer_ratio,
-                                          min_speed=0.0, 
+                                          min_speed=0., 
                                           max_lat_accel=max_lat_accel,
                                           max_steer_angle=max_steer_angle)    
 
@@ -79,8 +79,8 @@ class Controller(object):
     def acceleration_to_brake_throttle(self, acceleration):
 	'''translates acceleration value to throttle and brake values'''
 	deceleartion  = -acceleration
-	throttle = max(0.0, acceleration)
-        brake = max(0.0, deceleartion) + self.brake_deadband
+	throttle = max(0., acceleration)
+        brake = max(0., deceleartion) + self.brake_deadband
 	return throttle, brake 
 
     def kp_callback(self, msg):
