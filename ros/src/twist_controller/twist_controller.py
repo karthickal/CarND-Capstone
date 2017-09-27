@@ -9,28 +9,21 @@ ONE_MPH = 0.44704
 
 
 class Controller(object):
-    def __init__(self, max_lat_accel, max_steer_angle, steer_ratio, wheel_base):
+    def __init__(self, kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base):
         self.brake_deadband = rospy.get_param('~brake_deadband',  0.2)
 
         self.prev_time = None
 
-        # subscribe to Kp, Ki, and Kd
-        rospy.Subscriber('/kp', Float32, self.kp_callback)  # P
-        rospy.Subscriber('/ki', Float32, self.ki_callback)  # I
-        rospy.Subscriber('/kd', Float32, self.kd_callback)  # D
+        # init acceleration controlers
+        self.pid_acceleration = PID(kp, ki, kd)  # PID for acceleration
 
-        # init controlers
-        self.pid_acceleration = PID(3.0, 0.5, 0.01)  # PID for acceleration
+        # init yaw controller.
+        self.yaw_control = YawController(wheel_base, steer_ratio, 0., max_lat_accel, max_steer_angle)
 
-        # init low-pass filters (lpf) to filter high frequency signals and smooth
-        self.lpf = LowPassFilter(0.5, 0.5)
-
-        # init YawController to obtain steering yaw.
-        self.yaw_control = YawController(wheel_base=wheel_base,
-                                         steer_ratio=steer_ratio,
-                                         min_speed=0.,
-                                         max_lat_accel=max_lat_accel,
-                                         max_steer_angle=max_steer_angle)
+	# init low-pass filters (lpf) to filter high frequency signals and smooth
+        self.throttle_lpf = LowPassFilter(0.5, 0.5) # smoother throttle command
+	self.brake_lpf = LowPassFilter(0.5, 0.5) # smoother brake command
+	self.steering_lpf = LowPassFilter(0.5, 0.5) # smoother steering command
 
     def control(self, t, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity,
                 current_angular_velocity, dbw_enabled):
@@ -47,25 +40,28 @@ class Controller(object):
             brake		: proposed brake value
             steering	: proposed steering value
         '''
-        # TODO:
-
         if not dbw_enabled:
             self.pid_acceleration.reset()
-            self.pid_steering.reset()
            
         if self.prev_time is not None:
             delta_t = self.get_dt(t)
 
             # get throttle and brake
             delta_v = proposed_linear_velocity - current_linear_velocity
-            acceleration = self.pid_acceleration.update(delta_v, delta_t)
+            acceleration = self.pid_acceleration.step(delta_v, delta_t)
             throttle, brake = self.acceleration_to_brake_throttle(acceleration)
+	    
 
             # get steering
-            raw_steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,  current_linear_velocity)
-            steering = self.lpf.filter(raw_steering)
+            steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,  current_linear_velocity)
+
+	    #TODO: smooth the signals if needed
+	    # throttle = self.throttle_lpf(throttle)
+ 	    # brake = self.brake_lpf(brake)
+            # steering = self.lpf.filter(steering)
 
         else:
+	    # TODO: handle this case in a better way
             self.prev_time = t
             throttle, brake, steering = 0., 0., 0.
 
@@ -78,17 +74,11 @@ class Controller(object):
 
     def acceleration_to_brake_throttle(self, acceleration):
         '''translates acceleration value to throttle and brake values'''
-        deceleartion = -acceleration
-        throttle = max(0., acceleration)
-        brake = max(0., deceleartion) + self.brake_deadband
+	throttle, brake = 0., 0.
+
+	if acceleration >= 0.:
+	    throttle = acceleration
+	else:
+	    brake = -acceleration + self.brake_deadband 
         return throttle, brake
-
-    def kp_callback(self, msg):
-        self.pid_steering.kp = msg.data
-
-    def ki_callback(self, msg):
-        self.pid_steering.ki = msg.data
-
-    def kd_callback(self, msg):
-        self.pid_steering.kd = msg.data
 
