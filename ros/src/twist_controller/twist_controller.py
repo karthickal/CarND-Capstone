@@ -2,7 +2,7 @@ import rospy
 from yaw_controller import YawController
 from pid import PID
 from lowpass import LowPassFilter
-from std_msgs.msg import Float32
+
 
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
@@ -15,12 +15,13 @@ class Controller(object):
         self.prev_time = None
 
         # init acceleration controlers
-        self.pid_acceleration = PID(kp, ki, kd)  # PID for acceleration
+        self.acceleration_controller = PID(kp, ki, kd)  # PID for acceleration
 
         # init yaw controller.
         self.yaw_control = YawController(wheel_base, steer_ratio, 0., max_lat_accel, max_steer_angle)
-
+	
 	# init low-pass filters (lpf) to filter high frequency signals and smooth
+	# TODO: need to set these values
         self.throttle_lpf = LowPassFilter(0.5, 0.5) # smoother throttle command
 	self.brake_lpf = LowPassFilter(0.5, 0.5) # smoother brake command
 	self.steering_lpf = LowPassFilter(0.5, 0.5) # smoother steering command
@@ -41,14 +42,15 @@ class Controller(object):
             steering	: proposed steering value
         '''
         if not dbw_enabled:
-            self.pid_acceleration.reset()
+	    self.prev_time = None
+            self.acceleration_controller.reset()
            
         if self.prev_time is not None:
             delta_t = self.get_dt(t)
 
             # get throttle and brake
             delta_v = proposed_linear_velocity - current_linear_velocity
-            acceleration = self.pid_acceleration.step(delta_v, delta_t)
+            acceleration = self.acceleration_controller.step(delta_v, delta_t)
             throttle, brake = self.acceleration_to_brake_throttle(acceleration)
 	    
 
@@ -61,7 +63,7 @@ class Controller(object):
             # steering = self.lpf.filter(steering)
 
         else:
-	    # TODO: handle this case in a better way
+	    # TODO: handle this case in a better way: maybe keep the current values?
             self.prev_time = t
             throttle, brake, steering = 0., 0., 0.
 
