@@ -57,8 +57,7 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',  BrakeCmd, queue_size=1)
 
         # Create `TwistController` object
-	#TODO: set kp, ki, and kd 
-	kp, ki, kd = 10.0, 0.1, 0.01 # for acceleration controller 
+        kp, ki, kd = 10.0, 0.5, 0.01  # for acceleration controller
         self.controller = Controller(kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base)
 
         # subscribe to `DBW status`->Bool, `current velocity`->TwistStamped, and `twist command`->TwistStamped
