@@ -2,12 +2,13 @@
 import rospy
 import sys
 from std_msgs.msg import Int32
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Point
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
+import numpy as np
 import tf
 import cv2
 import yaml
@@ -26,6 +27,7 @@ class TLDetector(object):
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        sub4 = rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -103,19 +105,25 @@ class TLDetector(object):
 
         """
         best = sys.float_info.max
-        closest = -1
+        closest = 0
         if not self.waypoints:
-            return -1
+            return 0
         for idx, wp in enumerate(self.waypoints.waypoints):
-            xcomp = math.pow(wp.pose.pose.position.x - pose.position.x, 2)
-            ycomp = math.pow(wp.pose.pose.position.y - pose.position.y, 2)
-            zcomp = math.pow(wp.pose.pose.position.z - pose.position.z, 2)
-            dist = math.sqrt(xcomp + ycomp + zcomp)
+            waypoint_pose = wp.pose.pose.position
+            dist = self.distance(pose, waypoint_pose)
             if dist < best:
                 closest = idx
                 best = dist
-        return closest
+            else: #If we are getting farther away, stop. In this track we are generally either approaching or receding.
+                break
+        return closest, best
 
+    def distance(self, pose1, pose2):
+        xcomp = math.pow(pose2.x - pose1.x, 2)
+        ycomp = math.pow(pose2.y - pose1.y, 2)
+        zcomp = math.pow(pose2.z - pose1.z, 2)
+        dist = math.sqrt(xcomp + ycomp + zcomp)
+        return dist
 
     def project_to_image_plane(self, point_in_world):
         """Project point from 3D world coordinates to 2D camera image location
@@ -149,12 +157,12 @@ class TLDetector(object):
 
         #TODO Use tranform and rotation to calculate 2D position of light in image
 
-        camera_array = [[fx, 0,  image_width/2],
+        camera_array = np.array([[fx, 0,  image_width/2],
                         [0,  fy, image_height/2],
-                        [0,  0,  1]]
-        obj_points = [point_in_world]
+                        [0,  0,  1]])
+        obj_points = np.array([[point_in_world.x, point_in_world.y, point_in_world.z]])
         distortion_coeffs = None
-        image_points, __ = cv2.projectPoints(obj_points, rot, trans, camera_array, distortion_coeffs)
+        image_points, __ = cv2.projectPoints(obj_points, np.array(rot), np.array(trans), camera_array, distortion_coeffs)
 
         x = image_points[0][0]
         y = image_points[0][1]
@@ -199,21 +207,44 @@ class TLDetector(object):
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
-        if(self.pose):
-            car_position = self.get_closest_waypoint(self.pose.pose)
+        if self.pose and self.waypoints and self.waypoints.waypoints:
+            car_position, __ = self.get_closest_waypoint(self.pose.pose.position)
             rospy.loginfo('closest car waypoint:' + str(car_position))
 
         #TODO find the closest visible traffic light (if one exists)
             #find stop line
 
+            closest = 200
+            for stop_line in stop_line_positions:
+                pos = Point()
+                pos.x = stop_line[0]
+                pos.y = stop_line[1]
+                pos.z = self.pose.pose.position.z
 
+                #prevent expensive closest point calc when not needed.
+                if self.distance(pos, self.pose.pose.position) > 200:
+                    continue
+
+                wp, dist = self.get_closest_waypoint(pos)
+                rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:"+str(stop_line))
+
+
+                if dist < 1 and wp < 150 and wp < closest:
+                    closest = wp
+                    line_waypoint = self.waypoints.waypoints[wp].pose.pose.position
+                    best = sys.float_info.max
+                    for possible_light in self.lights:
+                        dist = self.distance(possible_light.pose.pose.position, line_waypoint)
+                        if dist < best:
+                            light = possible_light
+                            light_wp = wp
             #find light closest to stop line (may need to project forward)
 
 
         if light:
             state = self.get_light_state(light)
             return light_wp, state
-        #self.waypoints = None No
+        self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
