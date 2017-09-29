@@ -102,6 +102,7 @@ class TLDetector(object):
         """
         best = sys.float_info.max
         closest = 0
+    
         if not self.waypoints:
             return 0
         for idx, wp in enumerate(self.waypoints.waypoints):
@@ -112,6 +113,7 @@ class TLDetector(object):
                 best = dist
             else:  # If we are getting farther away, stop. In this track we are generally either approaching or receding.
                 break
+
         return closest, best
 
     def distance(self, pose1, pose2):
@@ -152,31 +154,40 @@ class TLDetector(object):
             car_position, __ = self.get_closest_waypoint(self.pose.pose.position)
             rospy.loginfo('closest car waypoint:' + str(car_position))
 
-        #TODO find the closest visible traffic light (if one exists)
-        closest = 200
-        for stop_line in stop_line_positions:
-            pos = Point()
-            pos.x = stop_line[0]
-            pos.y = stop_line[1]
-            pos.z = self.pose.pose.position.z
+            #TODO find the closest visible traffic light (if one exists)
+            closest = 200
+            for stop_line in stop_line_positions:
+                pos = Point()
+                pos.x = stop_line[0]
+                pos.y = stop_line[1]
+                pos.z = self.pose.pose.position.z
 
-            # prevent expensive closest point calc when not needed.
-            if self.distance(pos, self.pose.pose.position) > 200:
-                continue
+                # prevent expensive closest point calc when not needed.
+                if self.distance(pos, self.pose.pose.position) > 200:
+                    continue
 
-            wp, dist = self.get_closest_waypoint(pos)
-            rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:" + str(stop_line))
+                wp, dist = self.get_closest_waypoint(pos)
+                rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:" + str(stop_line))
 
-            if dist < 1 and wp < 150 and wp < closest:
-                closest = wp
-                line_waypoint = self.waypoints.waypoints[wp].pose.pose.position
-                best = sys.float_info.max
-                for possible_light in self.lights:
-                    dist = self.distance(possible_light.pose.pose.position, line_waypoint)
-                    if dist < best:
-                        light = possible_light
-                        light_wp = wp
-                        # find light closest to stop line (may need to project forward)
+                if dist < 1 and wp < 150 and wp < closest:
+                    closest = wp
+                    line_waypoint = self.waypoints.waypoints[wp].pose.pose.position
+                    line_waypoint_next = self.waypoints.waypoints[wp+2].pose.pose.position
+                    best = sys.float_info.max
+                    #TODO: only use it if the light is infront of me.
+                    for possible_light in self.lights:
+                        dist_light = self.distance(possible_light.pose.pose.position, line_waypoint)
+                        rospy.loginfo('dist_light:' + str(dist_light))
+                        if dist_light < 50 and dist_light < best:
+                            dist_light_next = self.distance(possible_light.pose.pose.position, line_waypoint_next)
+                            rospy.loginfo('dist_next_light' + str(dist_light_next))
+
+                            if dist_light_next < dist_light:
+                                best = dist_light
+                                light = possible_light
+                                light_wp = wp
+                                rospy.loginfo('using_light')
+                            # find light closest to stop line (may need to project forward)
 
         if light:
             state = self.get_light_state(light)
