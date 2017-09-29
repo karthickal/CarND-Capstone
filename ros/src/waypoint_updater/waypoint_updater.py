@@ -29,10 +29,11 @@ class WaypointUpdater(object):
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
-
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.waypoints = None
+
+        self.last_waypoint = None
 
         rospy.spin()
 
@@ -46,31 +47,49 @@ class WaypointUpdater(object):
             # simulating a position just ahead of the vehicle
             future_x = math.cos(theta) * 0.0001 + current_x
             future_y = math.sin(theta) * 0.0001 + current_y
+            num_waypoints = len(self.waypoints.waypoints)
 
             closest_index = 0
             closest_waypoint = None
             closest_distance = 1e99
-            for i, waypoint in enumerate(self.waypoints.waypoints):
-                this_x = waypoint.pose.pose.position.x
-                this_y = waypoint.pose.pose.position.y
-                this_distance = self.orthogonal_distance(this_x, this_y, current_x, current_y)
-                if this_distance < closest_distance:
-                    closest_index = i
-                    closest_waypoint = waypoint
-                    closest_distance = this_distance
+            if self.last_waypoint:  # will happen every time except for the first time.
+                for i in range(num_waypoints):
+                    this_index = (i + self.last_waypoint) % num_waypoints
+                    waypoint = self.waypoints.waypoints[this_index]
+                    this_x = waypoint.pose.pose.position.x
+                    this_y = waypoint.pose.pose.position.y
+                    this_distance = self.euclidean_distance(this_x, this_y, current_x, current_y)
+                    if this_distance < closest_distance:
+                        closest_index = this_index
+                        closest_waypoint = waypoint
+                        closest_distance = this_distance
+                    else:  # we are now getting further away, stop
+                        break
+            else:
+                for i, waypoint in enumerate(self.waypoints.waypoints):
+                    this_x = waypoint.pose.pose.position.x
+                    this_y = waypoint.pose.pose.position.y
+                    this_distance = self.euclidean_distance(this_x, this_y, current_x, current_y)
+                    if this_distance < closest_distance:
+                        closest_index = i
+                        closest_waypoint = waypoint
+                        closest_distance = this_distance
+
             output = Lane()
             output.header = self.waypoints.header
-            num_waypoints = len(self.waypoints.waypoints)
-            if closest_distance > self.orthogonal_distance(closest_waypoint.pose.pose.position.x,
+
+            if closest_distance <= self.euclidean_distance(closest_waypoint.pose.pose.position.x,
                                                            closest_waypoint.pose.pose.position.y,
-                                                           future_x, future_y):
-                output.waypoints = self.waypoints.waypoints[
-                                   closest_index:(closest_index + LOOKAHEAD_WPS) % num_waypoints]
-            else: # closest waypoint is behind, so use next waypoint
-                output.waypoints = self.waypoints.waypoints[
-                                   (closest_index + 1) % num_waypoints :(closest_index + LOOKAHEAD_WPS + 1) %
-                                                                       num_waypoints]
+                                                           future_x, future_y): # closest waypoint is behind, choose next one
+                closest_index += 1
+
+            new_waypoints = []
+            for i in range(LOOKAHEAD_WPS):
+                new_waypoints.append(self.waypoints.waypoints[(i+closest_index) % num_waypoints])
+
+            output.waypoints = new_waypoints
             self.final_waypoints_pub.publish(output)
+            self.last_waypoint = closest_index
         else:
             rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
 
@@ -99,7 +118,7 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
 
-    def orthogonal_distance(self, x1, y1, x2, y2):
+    def euclidean_distance(self, x1, y1, x2, y2):
         return math.sqrt(math.pow(x1-x2, 2) + math.pow(y1-y2, 2))
 
 
