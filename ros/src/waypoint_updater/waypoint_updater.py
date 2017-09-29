@@ -23,7 +23,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this number
-
+ONE_MPH = 0.44704
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -126,7 +126,7 @@ class WaypointUpdater(object):
 
         # TODO: Smoothen the velocity to the target velocity
         for waypoint in next_waypoints:
-            waypoint.twist.twist.linear.x = 10.0
+            waypoint.twist.twist.linear.x = 10.0 * ONE_MPH
 
         return next_waypoints
 
