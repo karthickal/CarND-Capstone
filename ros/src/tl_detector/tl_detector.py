@@ -67,10 +67,8 @@ class TLDetector(object):
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
             of the waypoint closest to the red light's stop line to /traffic_waypoint
-
         Args:
             msg (Image): image from car-mounted camera
-
         """
         self.has_image = True
         self.camera_image = msg
@@ -99,10 +97,8 @@ class TLDetector(object):
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
         Args:
             pose (Pose): position to match a waypoint to
-
         Returns:
             int: index of the closest waypoint in self.waypoints
-
         """
         best = sys.float_info.max
         closest = 0
@@ -114,7 +110,7 @@ class TLDetector(object):
             if dist < best:
                 closest = idx
                 best = dist
-            else: #If we are getting farther away, stop. In this track we are generally either approaching or receding.
+            else:  # If we are getting farther away, stop. In this track we are generally either approaching or receding.
                 break
         return closest, best
 
@@ -125,59 +121,12 @@ class TLDetector(object):
         dist = math.sqrt(xcomp + ycomp + zcomp)
         return dist
 
-    def project_to_image_plane(self, point_in_world):
-        """Project point from 3D world coordinates to 2D camera image location
-
-        Args:
-            point_in_world (Point): 3D location of a point in the world
-
-        Returns:
-            x (int): x coordinate of target point in image
-            y (int): y coordinate of target point in image
-
-        """
-
-        fx = self.config['camera_info']['focal_length_x']
-        fy = self.config['camera_info']['focal_length_y']
-        image_width = self.config['camera_info']['image_width']
-        image_height = self.config['camera_info']['image_height']
-
-        # get transform between pose of camera and world frame
-        trans = None
-        rot = None
-        try:
-            now = rospy.Time.now()
-            self.listener.waitForTransform("/base_link",
-                  "/world", now, rospy.Duration(1.0))
-            (trans, rot) = self.listener.lookupTransform("/base_link",
-                  "/world", now)
-
-        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
-            rospy.logerr("Failed to find camera to map transform")
-
-        #TODO Use tranform and rotation to calculate 2D position of light in image
-
-        camera_array = np.array([[fx, 0,  image_width/2],
-                        [0,  fy, image_height/2],
-                        [0,  0,  1]])
-        obj_points = np.array([[point_in_world.x, point_in_world.y, point_in_world.z]])
-        distortion_coeffs = None
-        image_points, __ = cv2.projectPoints(obj_points, np.array(rot), np.array(trans), camera_array, distortion_coeffs)
-
-        x = image_points[0][0]
-        y = image_points[0][1]
-
-        return x, y
-
     def get_light_state(self, light):
         """Determines the current color of the traffic light
-
         Args:
             light (TrafficLight): light to classify
-
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-
         """
         if(not self.has_image):
             self.prev_light_loc = None
@@ -185,23 +134,15 @@ class TLDetector(object):
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        x, y = self.project_to_image_plane(light.pose.pose.position)
-
-
-
-        #TODO use light location to zoom in on traffic light in image
-
         #Get classification
         return self.light_classifier.get_classification(cv_image)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
-
         Returns:
             int: index of waypoint closes to the upcoming stop line for a traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-
         """
         light = None
 
@@ -212,34 +153,30 @@ class TLDetector(object):
             rospy.loginfo('closest car waypoint:' + str(car_position))
 
         #TODO find the closest visible traffic light (if one exists)
-            #find stop line
+        closest = 200
+        for stop_line in stop_line_positions:
+            pos = Point()
+            pos.x = stop_line[0]
+            pos.y = stop_line[1]
+            pos.z = self.pose.pose.position.z
 
-            closest = 200
-            for stop_line in stop_line_positions:
-                pos = Point()
-                pos.x = stop_line[0]
-                pos.y = stop_line[1]
-                pos.z = self.pose.pose.position.z
+            # prevent expensive closest point calc when not needed.
+            if self.distance(pos, self.pose.pose.position) > 200:
+                continue
 
-                #prevent expensive closest point calc when not needed.
-                if self.distance(pos, self.pose.pose.position) > 200:
-                    continue
+            wp, dist = self.get_closest_waypoint(pos)
+            rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:" + str(stop_line))
 
-                wp, dist = self.get_closest_waypoint(pos)
-                rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:"+str(stop_line))
-
-
-                if dist < 1 and wp < 150 and wp < closest:
-                    closest = wp
-                    line_waypoint = self.waypoints.waypoints[wp].pose.pose.position
-                    best = sys.float_info.max
-                    for possible_light in self.lights:
-                        dist = self.distance(possible_light.pose.pose.position, line_waypoint)
-                        if dist < best:
-                            light = possible_light
-                            light_wp = wp
-            #find light closest to stop line (may need to project forward)
-
+            if dist < 1 and wp < 150 and wp < closest:
+                closest = wp
+                line_waypoint = self.waypoints.waypoints[wp].pose.pose.position
+                best = sys.float_info.max
+                for possible_light in self.lights:
+                    dist = self.distance(possible_light.pose.pose.position, line_waypoint)
+                    if dist < best:
+                        light = possible_light
+                        light_wp = wp
+                        # find light closest to stop line (may need to project forward)
 
         if light:
             state = self.get_light_state(light)
