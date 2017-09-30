@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""The waypoint updater node."""
+
+__author__ = "Thomas Woodside, Karthick Loganathan"
+
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
@@ -143,7 +147,6 @@ class WaypointUpdater(object):
             closest_index = self.__get_closest_waypoint(pose)
             next_waypoints = self.__generate_next_waypoints(closest_index)
 
-            rospy.loginfo("Default velocity is {} ".format(next_waypoints[0].twist.twist.linear.x))
             # TODO: smoothen the speed across waypoints; check if traffic light is detected
             for wp in next_waypoints:
                 wp.twist.twist.linear.x = self.target_velocity * ONE_MPH
@@ -154,7 +157,6 @@ class WaypointUpdater(object):
             # publish the waypoints
             self.final_waypoints_pub.publish(lane)
             self.last_waypoint = closest_index
-            rospy.loginfo("Published {} new waypoints".format(len(next_waypoints)))
         else:
             rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
 
