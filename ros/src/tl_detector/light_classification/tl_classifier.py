@@ -9,7 +9,7 @@ class TLClassifier(object):
         pass
 
     def get_classification(self, image, light_state):
-        if light_state != 4 and random.random() > 0.9:
+        if light_state != 4:
             image_id = random.randrange(0, 1000000)
             # save training image
             directory = "/home/student/VMDrive/images/t"+str(light_state)+"/image"
