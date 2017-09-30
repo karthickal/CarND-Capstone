@@ -21,7 +21,6 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 LOOKAHEAD_WPS = 50  # Number of waypoints we will publish. You can change this number
 ONE_MPH = 0.44704
 
-
 class WaypointUpdater(object):
     def __init__(self):
         """
@@ -46,7 +45,7 @@ class WaypointUpdater(object):
 
         rospy.spin()
 
-    def __is_behind(self, pose, target_wp):
+    def __is_behind(self, pose, target_wp, closest_distance):
         """
         To determine if the target waypoint is behind the car
         :param pose: the pose of the car
@@ -54,20 +53,22 @@ class WaypointUpdater(object):
         :return: bool True if waypoint is behind else False
         """
 
-        # get the orientation angle from the quaternion pose
-        _, _, yaw = euler_from_quaternion(
-            [pose.orientation.x, pose.orientation.y, pose.orientation.z,
-             pose.orientation.w])
+        theta = math.asin(pose.orientation.z) * 2
+        current_x = pose.position.x
+        current_y = pose.position.y
 
-        # shift the co-ordinates to be in a straight line
-        shift_x = target_wp.pose.pose.position.x - pose.position.x
-        shift_y = target_wp.pose.pose.position.y - pose.position.y
+        # simulate a position just ahead of the vehicle
+        future_x = math.cos(theta) * 0.0001 + current_x
+        future_y = math.sin(theta) * 0.0001 + current_y
 
-        # rotate the yaw to determine if it is positive
-        x = (shift_x * math.cos(-yaw)) - (shift_y * math.sin(-yaw))
-        if x > 0.0:
-            return False
-        return True
+        # if closest distance is less than distance between future position and target waypoint
+        if closest_distance <= self.euclidean_distance(target_wp.pose.pose.position.x,
+                                                       target_wp.pose.pose.position.y,
+                                                       future_x,
+                                                       future_y):
+            return True
+
+        return False
 
     def __get_closest_waypoint(self, pose):
         """
@@ -112,7 +113,7 @@ class WaypointUpdater(object):
                     closest_distance = this_distance
 
         # check if closest waypoint is behind the car
-        if self.__is_behind(pose, closest_waypoint):
+        if self.__is_behind(pose, closest_waypoint, closest_distance):
             closest_index += 1
 
         return closest_index
@@ -125,8 +126,7 @@ class WaypointUpdater(object):
         """
         new_waypoints = []
         for i in range(LOOKAHEAD_WPS):
-            wp = self.base_waypoints[(i + index) % len(self.base_waypoints)]
-            new_waypoints.append(wp)
+            new_waypoints.append(self.base_waypoints[(i + index) % len(self.base_waypoints)])
 
         return new_waypoints
 
@@ -143,6 +143,7 @@ class WaypointUpdater(object):
             closest_index = self.__get_closest_waypoint(pose)
             next_waypoints = self.__generate_next_waypoints(closest_index)
 
+            rospy.loginfo("Default velocity is {} ".format(next_waypoints[0].twist.twist.linear.x))
             # TODO: smoothen the speed across waypoints; check if traffic light is detected
             for wp in next_waypoints:
                 wp.twist.twist.linear.x = self.target_velocity * ONE_MPH
@@ -153,6 +154,7 @@ class WaypointUpdater(object):
             # publish the waypoints
             self.final_waypoints_pub.publish(lane)
             self.last_waypoint = closest_index
+            rospy.loginfo("Published {} new waypoints".format(len(next_waypoints)))
         else:
             rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
 
