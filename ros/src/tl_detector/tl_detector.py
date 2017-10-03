@@ -55,6 +55,8 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
+        self.image_count = 0
+
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -140,9 +142,9 @@ class TLDetector(object):
         ##########################################################################################
         # overrides for simulator camera
         if fx < 10:
-            fx = 2474
+            fx = 2574
             fy = 2744
-            image_center_x_offset = (image_height / 2) + 60
+            image_center_x_offset = (image_width / 2) - 30
             image_center_y_offset = image_height + 50
         ##########################################################################################
 
