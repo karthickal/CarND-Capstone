@@ -25,7 +25,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 
 LOOKAHEAD_WPS = 50  # Number of waypoints we will publish. You can change this number
 ONE_MPH = 0.44704
-WAIT_TIME = 1.0
+WAIT_TIME = 10.0
 SAFE_ACCEL = 5.0
 
 class WaypointUpdater(object):
@@ -229,14 +229,17 @@ class WaypointUpdater(object):
         if not brake:
             for wp in waypoints:
                 current_speed = min(current_speed + SAFE_ACCEL, final_speed)
-                wp.twist.twist.linear.x = current_speed
+                self.set_waypoint_velocity(wp, current_speed)
         else:
+            # if the car is stationary; start slowly so the car stops at the stop line and not before
+            if current_speed <0.1 and len(waypoints>2):
+                current_speed = SAFE_ACCEL
             # reduce the speed slowly based on the number of waypoints
             num_wps = len(waypoints)
             brake_slowdown = math.fabs((final_speed - current_speed)) / num_wps
             for wp in waypoints:
                 current_speed = max(current_speed - (brake_slowdown), 0.0)
-                wp.twist.twist.linear.x = current_speed
+                self.set_waypoint_velocity(wp, current_speed)
             # set the last waypoint to 0 just in case there is a residue
             waypoints[-1].twist.twist.linear.x = 0.0
 
@@ -289,8 +292,16 @@ class WaypointUpdater(object):
     def get_waypoint_velocity(self, waypoint):
         return waypoint.twist.twist.linear.x
 
-    def set_waypoint_velocity(self, waypoints, waypoint, velocity):
-        waypoints[waypoint].twist.twist.linear.x = velocity
+    def set_waypoint_velocity(self, waypoint, velocity):
+        """
+        Sets a the desired velocity for the waypoint. Thresholds the max value to the speed limit
+        :param waypoint: the waypoint to set the speed for
+        :param velocity: the desired speed
+        :return: None
+        """
+        safe_speed = min(velocity, self.max_speed * ONE_MPH)
+        waypoint.twist.twist.linear.x = safe_speed
+
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0
