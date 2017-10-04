@@ -234,7 +234,7 @@ class WaypointUpdater(object):
                 self.set_waypoint_velocity(wp, current_speed)
         else:
             # if the car is stationary; start slowly so the car stops at the stop line and not before
-            if current_speed <0.1 and len(waypoints>2):
+            if current_speed <0.1 and len(waypoints)>2:
                 current_speed = SAFE_ACCEL
             # reduce the speed slowly based on the number of waypoints
             num_wps = len(waypoints)

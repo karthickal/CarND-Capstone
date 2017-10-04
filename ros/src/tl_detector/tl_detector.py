@@ -104,16 +104,16 @@ class TLDetector(object):
         :return: None
         """
         # check if base waypoints are set
-        if self.base_waypoints is None or self.lights is None:
+        if self.base_waypoints is None:
             rospy.logwarn("TLDetector: Trying to load nearest waypoints before receiving base waypoints/light positions")
             return None
 
         # for each stop line position get the nearest waypoint and store in a dict
-        for light in self.lights:
+        for light in self.config['stop_line_positions']:
             pose = Pose()
-            pose.position.x = light.pose.pose.position.x
-            pose.position.y = light.pose.pose.position.y
-            pose.position.z = light.pose.pose.position.z
+            pose.position.x = light[0]
+            pose.position.y = light[1]
+            pose.position.z = 0.0
             closest_waypoint, _ = self.get_closest_waypoint(pose)
             self.traffic_map[closest_waypoint] = pose
 
@@ -176,6 +176,22 @@ class TLDetector(object):
 
         return best_tl, best_wp_idx
 
+    def get_accurate_light_position(self, light_pose):
+        """
+        Get accurate real world position for the target traffic point
+        :param light_pose: approx position of the target traffic light
+        :return: accurate position of the target traffic light
+        """
+        best_dist = float('inf')
+        position = None
+        for light in self.lights:
+            distance = self.distance(light_pose.position, light.pose.pose.position)
+            if distance < best_dist:
+                best_dist = distance
+                position = light.pose.pose
+
+        return position
+
     def pose_cb(self, msg):
         """
         Callback to handle incoming pose messages. Message consists of the current pose of the car
@@ -208,7 +224,6 @@ class TLDetector(object):
         :return: None
         """
         self.lights = msg.lights
-        self.load_traffic_map()
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
@@ -300,7 +315,7 @@ class TLDetector(object):
         car_rel_z = yaw_oriented_point[2] + transT[2]
 
         # rotate to camera view space with offset
-        camera_height_offset = 1.2
+        camera_height_offset = 1.1
         camera_rel_x = -car_rel_y
         camera_rel_z = car_rel_x
         camera_rel_y = -(car_rel_z - camera_height_offset)
@@ -310,8 +325,8 @@ class TLDetector(object):
         center_x = int((camera_rel_x * fx / camera_rel_z) + image_center_x_offset)
         center_y = int((camera_rel_y * fy / camera_rel_z) + image_center_y_offset)
 
-        corner_y_offset = 1.2
-        corner_x_offset = 0.6
+        corner_y_offset = 1.5
+        corner_x_offset = 1.5
 
         #  top left
         top_x = int(((camera_rel_x - corner_x_offset) * fx / camera_rel_z) + image_center_x_offset)
@@ -343,7 +358,7 @@ class TLDetector(object):
 
         # preprocess the image
         croppedImage = cv_image[top_y:bottom_y, top_x:bottom_x]
-        classifier_shape = (200, 100)
+        classifier_shape = (100, 100)
         final_image = scipy.misc.imresize(croppedImage, classifier_shape)
 
         # Get classification of the pre-processed image
@@ -359,8 +374,9 @@ class TLDetector(object):
         car_wp_idx, _ = self.get_closest_waypoint(self.pose.pose)
         traffic_pose, traffic_idx = self.get_closest_traffic_light(car_wp_idx)
         if traffic_idx != -1:
-            light = self.create_light(traffic_pose)
-            rospy.loginfo("TLDetector: Traffic Light is at {}".format(traffic_idx))
+            rospy.loginfo("TLDetector: Traffic Light at {}".format(traffic_idx))
+            accurate_pose = self.get_accurate_light_position(traffic_pose)
+            light = self.create_light(accurate_pose)
             state = self.get_light_state(light)
 
             return traffic_idx, state
