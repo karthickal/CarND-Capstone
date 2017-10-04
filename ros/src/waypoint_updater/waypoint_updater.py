@@ -56,7 +56,7 @@ class WaypointUpdater(object):
 
         rospy.spin()
 
-    def __is_behind(self, pose, target_wp, closest_distance):
+    def __is_behind(self, pose, target_wp):
         """
         To determine if the target waypoint is behind the car
         :param pose: the pose of the car
@@ -64,22 +64,24 @@ class WaypointUpdater(object):
         :return: bool True if waypoint is behind else False
         """
 
-        theta = math.asin(pose.orientation.z) * 2
-        current_x = pose.position.x
-        current_y = pose.position.y
+        # get the yaw angle after transformation
+        _, _, yaw = euler_from_quaternion([pose.orientation.x,
+                                           pose.orientation.y,
+                                           pose.orientation.z,
+                                           pose.orientation.w])
 
-        # simulate a position just ahead of the vehicle
-        future_x = math.cos(theta) * 0.0001 + current_x
-        future_y = math.sin(theta) * 0.0001 + current_y
+        origin_x = pose.position.x
+        origin_y = pose.position.y
 
-        # if closest distance is less than distance between future position and target waypoint
-        if closest_distance <= self.euclidean_distance(target_wp.pose.pose.position.x,
-                                                       target_wp.pose.pose.position.y,
-                                                       future_x,
-                                                       future_y):
-            return True
+        # shift the co-ordinates
+        shift_x = target_wp.pose.pose.position.x - origin_x
+        shift_y = target_wp.pose.pose.position.y - origin_y
 
-        return False
+        # rotate and check orientation
+        x = (shift_x * math.cos(0.0 - yaw)) - (shift_y * math.sin(0.0 - yaw))
+        if x > 0.0:
+            return False
+        return True
 
     def __get_closest_waypoint(self, pose):
         """
@@ -124,7 +126,7 @@ class WaypointUpdater(object):
                     closest_distance = this_distance
 
         # check if closest waypoint is behind the car
-        if self.__is_behind(pose, closest_waypoint, closest_distance):
+        if self.__is_behind(pose, closest_waypoint):
             closest_index += 1
 
         return closest_index

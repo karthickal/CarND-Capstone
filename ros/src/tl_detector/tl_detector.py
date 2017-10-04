@@ -117,8 +117,6 @@ class TLDetector(object):
             closest_waypoint, _ = self.get_closest_waypoint(pose)
             self.traffic_map[closest_waypoint] = pose
 
-        # rospy.signal_shutdown("Debugging")
-
     def is_behind(self, pose, target_wp):
         """
         To determine if the target waypoint is behind the car
@@ -127,38 +125,52 @@ class TLDetector(object):
         :return: bool True if waypoint is behind else False
         """
 
+        # get the yaw angle after transformation
         _, _, yaw = euler_from_quaternion([pose.orientation.x,
                                            pose.orientation.y,
                                            pose.orientation.z,
                                            pose.orientation.w])
+
         origin_x = pose.position.x
         origin_y = pose.position.y
 
+        # shift the co-ordinates
         shift_x = target_wp.pose.pose.position.x - origin_x
         shift_y = target_wp.pose.pose.position.y - origin_y
 
+        # rotate and check orientation
         x = (shift_x * math.cos(0.0 - yaw)) - (shift_y * math.sin(0.0 - yaw))
-
         if x > 0.0:
             return False
         return True
 
 
     def get_closest_traffic_light(self, origin_idx):
+        """
+        Method to get the closest traffic light waypoint
+        :param origin_idx: the waypoint closest to the car
+        :return: the closest traffic waypoint, its index
+        """
 
+        # get the origin waypoint and traffic map
+        origin_wp = self.base_waypoints.waypoints[origin_idx]
+        traffic_map = dict(self.traffic_map)
+
+        # check the traffic signal closest and ahead of the origin
         best_distance = float('inf')
         best_tl = None
         best_wp_idx = None
-        origin_wp = self.base_waypoints.waypoints[origin_idx]
-        for target_idx, pose in self.traffic_map.iteritems():
+        for target_idx, pose in traffic_map.iteritems():
             distance = self.distance(origin_wp.pose.pose.position, pose.position)
             if distance < best_distance:
+                # if waypoint is behind, skip
                 if self.is_behind(origin_wp.pose.pose, self.base_waypoints.waypoints[target_idx]):
                     continue
                 best_distance = distance
                 best_tl = pose
                 best_wp_idx = target_idx
 
+        # check if traffic light is visible
         if best_distance > VISIBLE_DISTANCE:
             return None, -1
 
@@ -351,7 +363,7 @@ class TLDetector(object):
             rospy.loginfo("TLDetector: Traffic Light is at {}".format(traffic_idx))
             state = self.get_light_state(light)
 
-            return self.base_waypoints.waypoints[traffic_idx], state
+            return traffic_idx, state
 
         rospy.loginfo("TLDetector: Traffic Light not found")
         return -1, TrafficLight.UNKNOWN
