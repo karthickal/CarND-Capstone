@@ -182,7 +182,7 @@ class TLDetector(object):
         car_rel_z = yaw_oriented_point[2] + transT[2]
 
         # rotate to camera view space with offset
-        camera_height_offset = 1.2
+        camera_height_offset = 1.1
         camera_rel_x = -car_rel_y
         camera_rel_z = car_rel_x
         camera_rel_y = -(car_rel_z - camera_height_offset)
@@ -192,8 +192,8 @@ class TLDetector(object):
         center_x = int((camera_rel_x * fx / camera_rel_z) + image_center_x_offset)
         center_y = int((camera_rel_y * fy / camera_rel_z) + image_center_y_offset)
 
-        corner_y_offset = 1.2
-        corner_x_offset = 0.6
+        corner_y_offset = 1.5
+        corner_x_offset = 1.5
 
         #  top left
         top_x = int(((camera_rel_x - corner_x_offset) * fx / camera_rel_z) + image_center_x_offset)
@@ -230,15 +230,15 @@ class TLDetector(object):
         if top_x < 0 or top_y < 0 or bottom_y >= 600 or bottom_x >= 800:
             return False
 
-        cv2.rectangle(cv_image, (top_x,top_y), (bottom_x,bottom_y), (255,0,0), thickness=3)
-        cv2.circle(cv_image, (center_x, center_y), 10, (255, 0, 0), 5)
+        # cv2.rectangle(cv_image, (top_x,top_y), (bottom_x,bottom_y), (255,0,0), thickness=3)
+        # cv2.circle(cv_image, (center_x, center_y), 10, (255, 0, 0), 5)
 
         croppedImage = cv_image[top_y:bottom_y, top_x:bottom_x]
-        classifier_shape = (200, 100)
+        classifier_shape = (100, 100)
         final_image = scipy.misc.imresize(croppedImage, classifier_shape)
 
         # Get classification
-        return self.light_classifier.get_classification(cv_image, light.state)
+        return self.light_classifier.get_classification(final_image, light.state)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -253,7 +253,7 @@ class TLDetector(object):
         stop_line_positions = self.config['stop_line_positions']
         if self.pose and self.waypoints and self.waypoints.waypoints:
             car_position, __ = self.get_closest_waypoint(self.pose.pose.position)
-            rospy.loginfo('closest car waypoint:' + str(car_position))
+            #rospy.loginfo('closest car waypoint:' + str(car_position))
 
             # TODO find the closest visible traffic light (if one exists)
             closest = 200
@@ -268,7 +268,7 @@ class TLDetector(object):
                     continue
 
                 wp, dist = self.get_closest_waypoint(pos)
-                rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:" + str(stop_line))
+                #rospy.loginfo('closest waypoint:' + str(wp) + " dist:" + str(dist) + " for:" + str(stop_line))
 
                 if dist < 1 and wp < 140 and wp < closest:
                     closest = wp
@@ -278,10 +278,10 @@ class TLDetector(object):
                     # TODO: only use it if the light is infront of me.
                     for possible_light in self.lights:
                         dist_light = self.distance(possible_light.pose.pose.position, line_waypoint)
-                        rospy.loginfo('dist_light:' + str(dist_light))
+                        #rospy.loginfo('dist_light:' + str(dist_light))
                         if dist_light < 50 and dist_light < best:
                             dist_light_next = self.distance(possible_light.pose.pose.position, line_waypoint_next)
-                            rospy.loginfo('dist_next_light' + str(dist_light_next))
+                            #rospy.loginfo('dist_next_light' + str(dist_light_next))
 
                             if dist_light_next < dist_light:
                                 best = dist_light
