@@ -176,21 +176,21 @@ class TLDetector(object):
 
         return best_tl, best_wp_idx
 
-    def get_accurate_light_position(self, light_pose):
+    def get_closest_light(self, light_pose):
         """
-        Get accurate real world position for the target traffic point
+        Get closest reported light to target position.
         :param light_pose: approx position of the target traffic light
-        :return: accurate position of the target traffic light
+        :return: closest traffic light
         """
         best_dist = float('inf')
-        position = None
+        closest_light = None
         for light in self.lights:
             distance = self.distance(light_pose.position, light.pose.pose.position)
             if distance < best_dist:
                 best_dist = distance
-                position = light.pose.pose
+                closest_light = light
 
-        return position
+        return closest_light
 
     def pose_cb(self, msg):
         """
@@ -375,31 +375,13 @@ class TLDetector(object):
         traffic_pose, traffic_idx = self.get_closest_traffic_light(car_wp_idx)
         if traffic_idx != -1:
             rospy.loginfo("TLDetector: Traffic Light at {}".format(traffic_idx))
-            accurate_pose = self.get_accurate_light_position(traffic_pose)
-            light = self.create_light(accurate_pose)
+            light = self.get_closest_light(traffic_pose)
             state = self.get_light_state(light)
 
             return traffic_idx, state
 
         rospy.loginfo("TLDetector: Traffic Light not found")
         return -1, TrafficLight.UNKNOWN
-
-    def create_light(self, pose, state=TrafficLight.UNKNOWN):
-        """
-        Create a light object from the traffic signal pose
-        :param pose: the traffic signal pose
-        :return: the light object
-        """
-        light = TrafficLight()
-
-        light.header = Header()
-        light.header.stamp = rospy.Time.now()
-        light.header.frame_id = 'world'
-
-        light.pose = self.create_pose(pose.position.x, pose.position.y, pose.position.z)
-        light.state = state
-
-        return light
 
     def create_pose(self, x, y, z, yaw=0.0):
         """

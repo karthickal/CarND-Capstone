@@ -8,14 +8,18 @@ class TLClassifier(object):
         #TODO load classifier
         pass
 
+    count = 0
     def get_classification(self, image, light_state):
-        if light_state != 4:
-            image_id = random.randrange(0, 1000000)
-            # save training image
-            directory = "/home/student/VMDrive/images/t"+str(light_state)+"/image"
-            image_name = directory + str(image_id) + ".jpg"
-            cv2.imwrite(image_name, image)
-            rospy.loginfo('savingImage:' + image_name)
+
+        self.count = (self.count + 1) % 10
+        if self.count == 0 or light_state != 0:
+            if light_state != 4:
+                image_id = random.randrange(0, 1000000)
+                # save training image
+                directory = "/home/student/VMDrive/images/t"+str(light_state)+"/image"
+                image_name = directory + str(image_id) + ".jpg"
+                cv2.imwrite(image_name, image)
+                rospy.loginfo('savingImage:' + image_name)
 
         """Determines the color of the traffic light in the image
 
@@ -26,5 +30,9 @@ class TLClassifier(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+        #loopback of audit state for testing
+        if light_state == 0:
+            return TrafficLight.RED
+
         #TODO implement light color prediction
         return TrafficLight.UNKNOWN
