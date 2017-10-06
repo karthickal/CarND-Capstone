@@ -379,13 +379,13 @@ class TLDetector(object):
         car_wp_idx, _ = self.get_closest_waypoint(self.pose.pose)
         traffic_pose, traffic_idx = self.get_closest_traffic_light(car_wp_idx)
         if traffic_idx != -1:
-            rospy.loginfo("TLDetector: Traffic Light at {}".format(traffic_idx))
+            rospy.logdebug("TLDetector: Traffic Light at {}".format(traffic_idx))
             light = self.get_closest_light(traffic_pose)
             state = self.get_light_state(light)
 
             return traffic_idx, state
 
-        rospy.loginfo("TLDetector: Traffic Light not found")
+        rospy.logdebug("TLDetector: Traffic Light not found")
         return -1, TrafficLight.UNKNOWN
 
     def create_pose(self, x, y, z, yaw=0.0):

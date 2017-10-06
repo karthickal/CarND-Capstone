@@ -42,11 +42,8 @@ class TLClassifier(object):
 
         results = self.sess.run([tf.nn.top_k(tf.nn.softmax(self.output_tensor))],
                            {self.training_mode: False, self.image_tensor: [image]})
-        rospy.loginfo('rawresults:' + str(results))
-
         detected_light_state = int(np.array(results[0].indices).flatten()[0])
 
-        rospy.loginfo('detected:' + str(detected_light_state) + " of " + str(type(detected_light_state)))
         if light_state != 4 and detected_light_state != light_state:
             image_id = random.randrange(0, 1000000)
             # save training image
@@ -62,7 +59,6 @@ class TLClassifier(object):
         if detected_light_state == 2:
             return TrafficLight.GREEN
         return TrafficLight.UNKNOWN
-
 
     def close(self):
         self.sess.close()
