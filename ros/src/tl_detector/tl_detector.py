@@ -358,7 +358,7 @@ class TLDetector(object):
 
         # preprocess the image
         croppedImage = cv_image[top_y:bottom_y, top_x:bottom_x]
-        classifier_shape = (100, 100)
+        classifier_shape = (128, 128)
         final_image = scipy.misc.imresize(croppedImage, classifier_shape)
 
         # Get classification of the pre-processed image
