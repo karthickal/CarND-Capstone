@@ -21,7 +21,7 @@ VISIBLE_DISTANCE = 85.0
 
 class TLDetector(object):
     def __init__(self):
-
+        self.started = False
         rospy.init_node('tl_detector')
 
         self.pose = None
@@ -61,6 +61,7 @@ class TLDetector(object):
         self.state_count = 0
         self.traffic_map = {}
 
+        self.started = True
         rospy.spin()
 
     def distance(self, pose1, pose2):
@@ -231,6 +232,9 @@ class TLDetector(object):
         Args:
             msg (Image): image from car-mounted camera
         """
+        if not self.started:
+            return
+
         self.has_image = True
         self.camera_image = msg
         self.image_pose = self.pose
