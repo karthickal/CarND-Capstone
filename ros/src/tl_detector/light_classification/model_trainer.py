@@ -157,7 +157,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
 def run():
     num_classes = 3
     image_shape = (128, 128)
-    epochs = 10
+    epochs = 200
     batch_size = 100
     data_dir = './data'
     test_data_dir = './fulldata'
