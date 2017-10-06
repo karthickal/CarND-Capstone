@@ -50,7 +50,7 @@ class TLClassifier(object):
         if light_state != 4 and detected_light_state != light_state:
             image_id = random.randrange(0, 1000000)
             # save training image
-            directory = "/home/student/VMDrive/CarND-Capstone/ros/src/tl_detector/trainer/train_data/t"+str(light_state)+"/image"
+            directory = "/home/student/VMDrive/missed/t"+str(light_state)+"/image"
             image_name = directory + str(image_id) + ".jpg"
             cv2.imwrite(image_name, image)
             rospy.loginfo('savingImage incorrect:' + image_name)
