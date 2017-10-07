@@ -9,15 +9,21 @@ ONE_MPH = 0.44704
 
 
 class Controller(object):
-    def __init__(self, kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base):
+    def __init__(self, kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base, accel_limit, decel_limit):
         self.brake_deadband = rospy.get_param('~brake_deadband',  0.2)
         self.vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
         self.wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
+        self.accel_limit = accel_limit
+        self.decel_limit = decel_limit
+
+        self.max_brake = self.vehicle_mass * abs(self.decel_limit) * self.wheel_radius
 
         self.prev_time = None
 
         # init acceleration controlers
         self.acceleration_controller = PID(kp, ki, kd)  # PID for acceleration
+        self.brake_controller = PID(1, 0, 0)  # PID for brake
+        self.steer_controller = PID(3, ki, kd)  # PID for steering
 
         # init yaw controller.
         self.yaw_control = YawController(wheel_base, steer_ratio, 0., max_lat_accel, max_steer_angle)
@@ -52,17 +58,16 @@ class Controller(object):
 
             # get throttle and brake
             delta_v = proposed_linear_velocity - current_linear_velocity
-            acceleration = self.acceleration_controller.step(delta_v, delta_t)
-            throttle, brake = self.acceleration_to_brake_throttle(acceleration)
+            target_accel = delta_v
+            acceleration = self.acceleration_controller.step(target_accel, delta_t)
+
+            throttle, brake = self.acceleration_to_brake_throttle(acceleration, delta_t)
 
             # get steering
-            steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
-                                                     current_linear_velocity)
+            # steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
+            #                                          current_linear_velocity)
 
-            # TODO: smooth the signals if needed
-            throttle = self.throttle_lpf.filt(throttle)
-            brake = self.brake_lpf.filt(brake)
-            steering = self.steering_lpf.filt(steering)
+            steering = self.steer_controller.step(proposed_angular_velocity-current_angular_velocity, delta_t)
 
         else:
             # TODO: handle this case in a better way: maybe keep the current values?
@@ -76,13 +81,16 @@ class Controller(object):
         self.prev_time = t
         return delta_t
 
-    def acceleration_to_brake_throttle(self, acceleration):
+    def acceleration_to_brake_throttle(self, acceleration, dt):
         '''translates acceleration value to throttle and brake values'''
         throttle, brake = 0., 0.
 
         if acceleration >= 0.:
-            throttle = acceleration
+            throttle = min(acceleration, self.accel_limit)
         else:
-            brake = acceleration * self.vehicle_mass * self.wheel_radius + self.brake_deadband
+            target_brake = abs(acceleration) * self.vehicle_mass * self.wheel_radius + self.brake_deadband
+            brake = self.brake_controller.step(target_brake, dt)
+            brake = min(brake, self.max_brake)
+
         return throttle, brake
 

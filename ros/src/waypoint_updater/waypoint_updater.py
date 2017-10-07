@@ -37,25 +37,31 @@ class WaypointUpdater(object):
         # rospy.loginfo("WaypointUpdater: Initialized.")
 
         # register the subscribers
-        self.curr_pose_sub = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
-        self.base_wp_sub = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
-        self.traffic_sub = rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb, queue_size=1)
-        self.curr_vel_sub = rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size=1)
+        self.curr_pose_sub = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        self.base_wp_sub = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        self.traffic_sub = rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        self.curr_vel_sub = rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
 
         # create the publisher
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # initialize states and params
         self.base_waypoints = None
+        self.pose = None
         self.max_speed = rospy.get_param('~velocity', 10.0)
         self.last_waypoint = None
         self.pose_received_time = None
         self.traffic_received_time = None
         self.traffic_wp_ind = None
         self.current_speed = 0.0
-        self.apply_brake = False
 
-        rospy.spin()
+        self.braking_distance = self.max_speed * 2
+        self.slowdown_speed = 5 * ONE_MPH
+        self.apply_brake = False
+        self.brake_coeff = 0.0
+        self.traffic_dist = 0.0
+
+        self.loop()
 
     def __is_behind(self, pose, target_wp):
         """
@@ -145,45 +151,75 @@ class WaypointUpdater(object):
         # not found
         return -1
 
+    def loop(self):
+        rate = rospy.Rate(30)
+
+        while not rospy.is_shutdown():
+            rate.sleep()
+
+            if self.base_waypoints is None or self.pose is None:
+                continue
+
+            pose = self.pose.pose
+            header = self.pose.header
+            closest_idx = self.__get_closest_waypoint(pose)
+            closest_wp = self.base_waypoints[closest_idx % len(self.base_waypoints)]
+            last_index = closest_idx + LOOKAHEAD_WPS
+
+            # get the traffic waypoint index
+            traffic_wp_ind = self.__get_traffic_wp(closest_idx)
+
+            # check if car has to brake
+            if traffic_wp_ind != -1 and traffic_wp_ind is not None:
+                self.apply_brake = True
+
+                self.brake_coeff = self.current_speed / self.braking_distance
+                    # rospy.loginfo("Coeff {} curr speed {}".format(self.brake_coeff, self.current_speed))
+                    # traffic_wp = self.base_waypoints[traffic_wp_ind % len(self.base_waypoints)]
+                    # stop_distance = self.euclidean_distance(pose.position,
+                    #                                         traffic_wp.pose.pose.position)
+                    # self.traffic_dist = stop_distance
+                    # rospy.loginfo("Stop distance is {}".format(stop_distance))
+                    # if stop_distance < 0.05:
+                    #     self.brake_coeff = float('inf')
+                    # else:
+                    #     self.brake_coeff = self.current_speed / stop_distance
+            else:
+                self.apply_brake = False
+                self.brake_coeff = 0.0
+                # self.traffic_dist = 0.0
+
+            # generate the next set of waypoints and set the speed for the waypoints
+            next_waypoints = self.__generate_next_waypoints(pose, self.base_waypoints, closest_idx, last_index, traffic_wp_ind)
+            # rospy.loginfo("Speed for waypoint {} is {}".format(closest_idx, next_waypoints[0].twist.twist.linear.x))
+
+            # if traffic_wp_ind != -1 and traffic_wp_ind is not None:
+        #     j = 0
+        #     rospy.loginfo("Logging Speed when car is at {}".format(self.current_speed))
+        #     for wp in next_waypoints:
+        #         rospy.loginfo("Speed at {} is {}".format((closest_idx+j)%len(self.base_waypoints), wp.twist.twist.linear.x))
+        #         j = j +1
+            #     rospy.signal_shutdown("Debug")
+
+            # get the lane object
+            lane = self.__get_lane(header, next_waypoints)
+
+            # publish the waypoints
+            self.final_waypoints_pub.publish(lane)
+            self.last_waypoint = closest_idx
+        else:
+            rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
+
+
     def pose_cb(self, msg):
         """
         Callback to handle pose updates. Generates the next waypoints
         :param msg: incoming message, contains pose data
         :return: None
         """
+        self.pose = msg
         self.pose_received_time = rospy.Time.now()
-        if self.base_waypoints is not None:
 
-            pose = msg.pose
-            closest_index = self.__get_closest_waypoint(pose)
-            last_index = closest_index + LOOKAHEAD_WPS
-
-            # get the traffic waypoint index
-            traffic_wp_ind = self.__get_traffic_wp(closest_index)
-
-            # check if car has to brake
-            self.apply_brake = False
-            if traffic_wp_ind != -1 and traffic_wp_ind is not None:
-                self.apply_brake = True
-
-            # generate the next set of waypoints and set the speed for the waypoints
-            next_waypoints = self.__generate_next_waypoints(pose, self.base_waypoints, closest_index, last_index, traffic_wp_ind)
-
-            # if traffic_wp_ind != -1 and traffic_wp_ind is not None:
-            #     j = 0
-            #     rospy.loginfo("Logging Speed")
-            #     for wp in next_waypoints:
-            #         rospy.loginfo("Speed at {} is {}".format((closest_index+j)%len(self.base_waypoints), wp.twist.twist.linear.x))
-            #         j = j +1
-
-            # get the lane object
-            lane = self.__get_lane(msg.header, next_waypoints)
-
-            # publish the waypoints
-            self.final_waypoints_pub.publish(lane)
-            self.last_waypoint = closest_index
-        else:
-            rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
 
     def __generate_next_waypoints(self, pose, waypoints, closest_idx, last_idx, traffic_idx = -1):
         """
@@ -206,9 +242,10 @@ class WaypointUpdater(object):
 
         next_waypoints = []
         if not brake:
-            if self.traffic_received_time is not None:
-                if rospy.Time().now().to_sec() - self.traffic_received_time < 2.0:
-                    speed_limit = speed_limit * 0.5
+            # rospy.loginfo("Not Braking")
+            # if self.traffic_received_time is not None:
+            #     if rospy.Time().now().to_sec() - self.traffic_received_time < 2.0:
+            #         speed_limit = speed_limit * 0.5
             for i in range(closest_idx, last_idx):
                 wp = waypoints[i%len(self.base_waypoints)]
                 current_speed = min(current_speed + SAFE_ACCEL, speed_limit)
@@ -220,31 +257,24 @@ class WaypointUpdater(object):
             rospy.logwarn("WaypointUpdater: Trying to brake while there is no traffic signal")
             return []
 
-        closest_wp = self.base_waypoints[closest_idx%len(self.base_waypoints)]
         traffic_wp = self.base_waypoints[traffic_idx%len(self.base_waypoints)]
-        stop_distance = self.euclidean_distance(closest_wp.pose.pose.position, traffic_wp.pose.pose.position)
-
-        if stop_distance > 5.0:
-            current_speed = max(self.current_speed, speed_limit)
-        else:
-            current_speed = min(self.current_speed, 1.0)
-
-        if stop_distance < 1:
-            slowdown_coeff = float('inf')
-        else:
-            slowdown_coeff = current_speed/stop_distance
         traffic_idx_found = False
+
         for i in range(closest_idx, last_idx):
             idx = i%len(self.base_waypoints)
             wp = waypoints[idx]
             if not traffic_idx_found:
+                wp_distance = self.euclidean_distance(wp.pose.pose.position, traffic_wp.pose.pose.position)
                 if idx == traffic_idx:
                     self.set_waypoint_velocity(wp, 0)
                     traffic_idx_found = True
+                elif wp_distance > self.braking_distance:
+                    current_speed = min(current_speed + SAFE_ACCEL, speed_limit)
+                    self.set_waypoint_velocity(wp, current_speed)
                 else:
-                    wp_distance = self.euclidean_distance(wp.pose.pose.position, traffic_wp.pose.pose.position)
-                    decelerate = slowdown_coeff * (stop_distance - wp_distance)
-                    rec_speed = max(0, current_speed - decelerate)
+                    decelerate = self.brake_coeff * (self.braking_distance - wp_distance)
+                    # rospy.loginfo("decelerate is {}".format(decelerate))
+                    rec_speed = min(self.slowdown_speed, current_speed - decelerate)
                     self.set_waypoint_velocity(wp, rec_speed)
             else:
                 self.set_waypoint_velocity(wp, 0)
