@@ -1,68 +1,94 @@
+"""Controller class to handle throttle, brake and steering"""
+
+__author__ = "Reza Arza, Thomas Woodside"
+
 import rospy
 from yaw_controller import YawController
 from pid import PID
 from lowpass import LowPassFilter
-
 
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
 
 class Controller(object):
-    def __init__(self, kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base, accel_limit, decel_limit):
-        self.brake_deadband = rospy.get_param('~brake_deadband',  0.2)
-        self.vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
-        self.wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
-        self.accel_limit = accel_limit
-        self.decel_limit = decel_limit
+    """
+    Controller class to handle throttle, brake and steering
+    """
+
+    def __init__(self, throttle_pid_params, brake_pid_params, state_params):
+        """
+
+        :param throttle_pid_params: Params for the throttle PID
+        :param brake_pid_params: Params for the brake PID
+        :param state_params: the state params
+        """
+
+        # set the state parms
+        self.brake_deadband = state_params["brake_deadband"]
+        self.vehicle_mass = state_params["vehicle_mass"]
+        self.wheel_radius = state_params["wheel_radius"]
+        self.accel_limit = state_params["accel_limit"]
+        self.decel_limit = state_params["decel_limit"]
+        self.wheel_base = state_params["wheel_base"]
+        self.steer_ratio = state_params["steer_ratio"]
+        self.max_lat_accel = state_params["max_lat_accel"]
+        self.max_steer_angle = state_params["max_steer_angle"]
 
         self.max_brake = self.vehicle_mass * abs(self.decel_limit) * self.wheel_radius
 
         self.prev_time = None
 
-        # init acceleration controlers
-        self.acceleration_controller = PID(kp, ki, kd)  # PID for acceleration
+        # init controllers
+        self.acceleration_controller = PID(throttle_pid_params["kp"], throttle_pid_params["ki"],
+                                           throttle_pid_params["kd"])
+        self.brake_controller = PID(brake_pid_params["kp"], brake_pid_params["ki"],
+                                    brake_pid_params["kd"])
 
         # init yaw controller.
-        self.yaw_control = YawController(wheel_base, steer_ratio, 0., max_lat_accel, max_steer_angle)
-
-        # init low-pass filters (lpf) to filter high frequency signals and smooth
-        # TODO: need to set these values
-        self.steering_lpf = LowPassFilter(1.0, 1.0) # smoother steering command
+        self.yaw_control = YawController(self.wheel_base, self.steer_ratio, 0., self.max_lat_accel,
+                                         self.max_steer_angle)
 
     def control(self, t, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity,
                 current_angular_velocity, dbw_enabled):
-        '''
-        INPUTS
-            t 			  : current time
-            proposed_linear_velocity  : desired linear velocity
-            proposed_angular_velocity : desired angular velocity
-            current_linear_velocity   : current linear velocity
-            current_angular_velocity  : current angular velocity
-            dbw_enabled  	          : True if driving in autonomous mode
-        OUPUTS
-            throttle	: proposed throttle value
-            brake		: proposed brake value
-            steering	: proposed steering value
-        '''
+        """
+
+        :param t: current time
+        :param proposed_linear_velocity: desired linear velocity
+        :param proposed_angular_velocity: desired angular velocity
+        :param current_linear_velocity: current linear velocity
+        :param current_angular_velocity: current angular velocity
+        :param dbw_enabled: True if driving in autonomous mode
+        :return: (throttle, brake, steering) tuple containing the target state
+        """
+
+        # if not in autonomous mode; reset the controllers
         if not dbw_enabled:
             self.prev_time = None
             self.acceleration_controller.reset()
 
+        # if previous time is enabled
         if self.prev_time is not None:
-            delta_t = self.get_dt(t)
-
-            # get throttle and brake
+            # calculate error in velocity and sample time
             delta_v = proposed_linear_velocity - current_linear_velocity
-            target_accel = delta_v
-            acceleration = self.acceleration_controller.step(target_accel, delta_t)
+            delta_t = t - self.prev_time
 
-            throttle, brake = self.acceleration_to_brake_throttle(acceleration, delta_t)
+            throttle, brake = 0., 0.
+            # if error in velocty is positive; set the throttle component
+            if delta_v >= 0.0:
+                throttle = self.acceleration_controller.step(delta_v, delta_t)
+                throttle = min(throttle, self.accel_limit)
+            else:
+                # if velocity error is between 0 and 0.2 ignore as this would eventually stop the car
+                if abs(delta_v) <= self.brake_deadband:
+                    brake = 0.0
+                else:
+                    # get the braking required to reduce the speed
+                    target_brake = abs(delta_v) * self.vehicle_mass * self.wheel_radius
+                    rec_brake = self.brake_controller.step(target_brake, delta_t)
+                    brake = min(rec_brake, self.max_brake)
 
-            # get steering
-            # steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
-            #                                          current_linear_velocity)
-
+            # get the target steering
             steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
                                                      current_linear_velocity)
 
@@ -71,22 +97,5 @@ class Controller(object):
             self.prev_time = t
             throttle, brake, steering = 0., 0., 0.
 
+        # return the target values
         return throttle, brake, steering
-
-    def get_dt(self, t):
-        delta_t = t - self.prev_time
-        self.prev_time = t
-        return delta_t
-
-    def acceleration_to_brake_throttle(self, acceleration, dt):
-        '''translates acceleration value to throttle and brake values'''
-        throttle, brake = 0., 0.
-
-        if acceleration >= 0.:
-            throttle = min(acceleration, self.accel_limit)
-        else:
-            target_brake = abs(acceleration) * self.vehicle_mass * self.wheel_radius
-            brake = min(target_brake + self.brake_deadband, self.max_brake)
-
-        return throttle, brake
-
