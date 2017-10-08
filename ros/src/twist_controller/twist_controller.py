@@ -22,16 +22,12 @@ class Controller(object):
 
         # init acceleration controlers
         self.acceleration_controller = PID(kp, ki, kd)  # PID for acceleration
-        self.brake_controller = PID(1, 0, 0)  # PID for brake
-        self.steer_controller = PID(3, ki, kd)  # PID for steering
 
         # init yaw controller.
         self.yaw_control = YawController(wheel_base, steer_ratio, 0., max_lat_accel, max_steer_angle)
 
         # init low-pass filters (lpf) to filter high frequency signals and smooth
         # TODO: need to set these values
-        self.throttle_lpf = LowPassFilter(0.5, 0.5) # smoother throttle command
-        self.brake_lpf = LowPassFilter(0.5, 0.5) # smoother brake command
         self.steering_lpf = LowPassFilter(1.0, 1.0) # smoother steering command
 
     def control(self, t, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity,
@@ -52,7 +48,7 @@ class Controller(object):
         if not dbw_enabled:
             self.prev_time = None
             self.acceleration_controller.reset()
-           
+
         if self.prev_time is not None:
             delta_t = self.get_dt(t)
 
@@ -67,7 +63,8 @@ class Controller(object):
             # steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
             #                                          current_linear_velocity)
 
-            steering = self.steer_controller.step(proposed_angular_velocity-current_angular_velocity, delta_t)
+            steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
+                                                     current_linear_velocity)
 
         else:
             # TODO: handle this case in a better way: maybe keep the current values?
@@ -88,9 +85,8 @@ class Controller(object):
         if acceleration >= 0.:
             throttle = min(acceleration, self.accel_limit)
         else:
-            target_brake = abs(acceleration) * self.vehicle_mass * self.wheel_radius + self.brake_deadband
-            brake = self.brake_controller.step(target_brake, dt)
-            brake = min(brake, self.max_brake)
+            target_brake = abs(acceleration) * self.vehicle_mass * self.wheel_radius
+            brake = min(target_brake + self.brake_deadband, self.max_brake)
 
         return throttle, brake
 
