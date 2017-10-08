@@ -47,7 +47,7 @@ def layers(image_input, numclasses, training_mode):
     normalized = tf.layers.batch_normalization(image_input)
 
     #1
-    decoder_1 = convLayer(normalized, 64, 7, 2)
+    decoder_1 = convLayer(normalized, 128, 5, 2)
     dropout_1 = tf.layers.dropout(decoder_1, rate=0.75, training=training_mode)
 
     #2
@@ -68,12 +68,14 @@ def layers(image_input, numclasses, training_mode):
 
     #7
     decoder_7 = convLayer(decoder_6, 32, 3, 2)
-    dense = tf.layers.conv2d(decoder_7, numclasses * 2, 1, strides=(1, 1), padding='valid',
+    dense = tf.layers.conv2d(decoder_7, numclasses * 3, 1, strides=(1, 1), padding='valid',
                                  activation=tf.nn.elu,
-                                 kernel_initializer=tf.contrib.layers.xavier_initializer())
+                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                 activity_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     output = tf.layers.conv2d(dense, numclasses, 1, strides=(1, 1), padding='valid',
                                  activation=tf.nn.elu,
-                                 kernel_initializer=tf.contrib.layers.xavier_initializer())
+                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                 activity_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     return output
 
 
@@ -136,7 +138,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
 
         for batch_x, batch_y in get_batches_fn(batch_size):
             _, loss = sess.run([train_op, cross_entropy_loss],
-               feed_dict={input_image: batch_x, learning_rate: 0.0001, correct_label: batch_y, training_mode: True})
+               feed_dict={input_image: batch_x, learning_rate: 0.00001, correct_label: batch_y, training_mode: True})
             #print("batch loss: " + str(loss) + " count: " + str(len(batch_x)))
 
             num_samples += len(batch_x)
