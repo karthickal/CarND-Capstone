@@ -53,6 +53,7 @@ class Bridge(object):
         self.subscribers = [rospy.Subscriber(e.topic, TYPE[e.type], self.callbacks[e.topic])
                             for e in conf.subscribers]
 
+        self.last_image = rospy.Time.now()
         self.publishers = {e.name: rospy.Publisher(e.topic, TYPE[e.type], queue_size=1)
                            for e in conf.publishers}
 
@@ -172,7 +173,7 @@ class Bridge(object):
     def publish_dbw_status(self, data):
         self.publishers['dbw_status'].publish(Bool(data))
 
-    last_image = rospy.Time.now()
+
     def publish_camera(self, data):
         if (self.last_image - rospy.Time.now()).nsecs < 100000000:
             return
