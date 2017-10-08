@@ -172,12 +172,18 @@ class Bridge(object):
     def publish_dbw_status(self, data):
         self.publishers['dbw_status'].publish(Bool(data))
 
+    last_image = rospy.Time.now()
     def publish_camera(self, data):
+        if (self.last_image - rospy.Time.now()).nsecs < 100000000:
+            return
+
         imgString = data["image"]
         image = PIL_Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
 
         image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="rgb8")
+        image_message.header.stamp = rospy.Time.now()
+        self.last_image = rospy.Time.now()
         self.publishers['image'].publish(image_message)
 
     def callback_steering(self, data):
