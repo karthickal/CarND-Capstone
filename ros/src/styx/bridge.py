@@ -175,7 +175,8 @@ class Bridge(object):
 
 
     def publish_camera(self, data):
-        if (self.last_image - rospy.Time.now()).nsecs < 100000000:
+        if (self.last_image - rospy.Time.now()).nsecs < 200000000:
+            rospy.loginfo("skipping image message")
             return
 
         imgString = data["image"]
