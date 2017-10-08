@@ -28,10 +28,12 @@ def distort_image(image):
     image_array = np.array(final)
     rows, cols, ch = image_array.shape
 
+    x_jitter = random.randint(-3,3)
+    y_jitter = random.randint(-3,3)
     pts1 = np.float32([[5, 5], [95, 5], [5, 95]])
-    pts2 = np.float32([[5 + random.randint(-3,3), 5+ random.randint(-3,3)],
-                       [95 + random.randint(-3,3), 5+ random.randint(-3,3)],
-                       [5+ random.randint(-3,3), 95+ random.randint(-3,3)]])
+    pts2 = np.float32([[5 + random.randint(-2,2)+x_jitter, 5+ random.randint(-2,2)+y_jitter],
+                       [95 + random.randint(-2,2)+x_jitter, 5+ random.randint(-2,2)+y_jitter],
+                       [5+ random.randint(-2,2)+x_jitter, 95+ random.randint(-2,2)+y_jitter]])
 
     M = cv2.getAffineTransform(pts1, pts2)
 
