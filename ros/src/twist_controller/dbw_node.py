@@ -57,8 +57,8 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',  BrakeCmd, queue_size=1)
 
         # Create `TwistController` object
-        kp, ki, kd = 10.0, 0.5, 0.01  # for acceleration controller
-        self.controller = Controller(kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base)
+        kp, ki, kd = 1.0, 0, 0  # for acceleration controller
+        self.controller = Controller(kp, ki, kd, max_lat_accel, max_steer_angle, steer_ratio, wheel_base, accel_limit, decel_limit)
 
         # subscribe to `DBW status`->Bool, `current velocity`->TwistStamped, and `twist command`->TwistStamped
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_callback)
@@ -69,10 +69,9 @@ class DBWNode(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(50)  # 50Hz
+        rate = rospy.Rate(10)  # 50Hz
         while not rospy.is_shutdown():
             if (not self.twist_cmd) or (not self.current_velocity):  # first commands are not published yet.
-                rate.sleep()
                 continue
             t = rospy.get_time()  # current time
 
@@ -89,6 +88,8 @@ class DBWNode(object):
                                                                 current_angular_velocity,
                                                                 self.dbw_enabled    	  # reset controler if false
                                                                 )
+
+            rospy.loginfo("target vel {}, brake {}, accel {}".format(proposed_linear_velocity, brake, throttle))
             if self.dbw_enabled:
                 self.publish(throttle, brake, steering)
                 rate.sleep()
