@@ -1,6 +1,6 @@
 """Controller class to handle throttle, brake and steering"""
 
-__author__ = "Reza Arza, Thomas Woodside"
+__author__ = "Reza Arfa, Thomas Woodside"
 
 import rospy
 from yaw_controller import YawController

@@ -2,7 +2,7 @@
 
 """ The DBW node"""
 
-__author__ = "Reza Arza, Thomas Woodside"
+__author__ = "Reza Arfa, Thomas Woodside"
 
 import rospy
 from std_msgs.msg import Bool
