@@ -9,21 +9,6 @@ import time
 import numpy as np
 
 import helper
-import warnings
-from distutils.version import LooseVersion
-
-
-# Check TensorFlow Version
-from tensorflow.python.saved_model import tag_constants
-
-assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
-print('TensorFlow Version: {}'.format(tf.__version__))
-
-# Check for a GPU
-if not tf.test.gpu_device_name():
-    warnings.warn('No GPU found. Please use a GPU to train your neural network.')
-else:
-    print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
 
 def convLayer(inputLayer, depth, width, stride):

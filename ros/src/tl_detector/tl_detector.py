@@ -245,12 +245,12 @@ class TLDetector(object):
             return
 
         if (self.pose.header.stamp - self.camera_image.header.stamp).nsecs > 200000000:
-            rospy.loginfo("skipping light update - image and position not in synch")
+            rospy.logdebug("skipping light update - image and position not in synch")
             return
 
         #possible race condition here. Can have multiple threads hit this. I need to put a 2.7 compatable lock here.
         self.image_processed = True
-        rospy.loginfo("Updating traffic light")
+        rospy.logdebug("Updating traffic light")
         light_wp, state = self.process_traffic_lights()
         '''
             Publish upcoming red lights at camera frequency.

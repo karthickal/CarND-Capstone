@@ -3,14 +3,9 @@ import random
 import numpy as np
 import os.path
 import scipy.misc
-import shutil
-import zipfile
 import cv2
-import time
 import tensorflow as tf
 from glob import glob
-from six.moves.urllib.request import urlretrieve
-from tqdm import tqdm
 from PIL import ImageEnhance, Image, ImageOps
 
 
