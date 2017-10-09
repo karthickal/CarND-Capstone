@@ -131,7 +131,7 @@ class Bridge(object):
         position = (data['x'], data['y'], data['z'])
         orientation = tf.transformations.quaternion_from_euler(0, 0, math.pi * data['yaw']/180.)
         self.broadcast_transform("base_link", position, orientation)
-
+        rospy.loginfo("odometry msgs")
         self.publishers['current_pose'].publish(pose)
         self.vel = data['velocity']* 0.44704
         self.angular = self.calc_angular(data['yaw'] * math.pi/180.)
@@ -140,6 +140,7 @@ class Bridge(object):
 
     def publish_controls(self, data):
         steering, throttle, brake = data['steering_angle'], data['throttle'], data['brake']
+        rospy.loginfo("constrols msgs")
         self.publishers['steering_report'].publish(self.create_steer(steering))
         self.publishers['throttle_report'].publish(self.create_float(throttle))
         self.publishers['brake_report'].publish(self.create_float(brake))
@@ -152,9 +153,11 @@ class Bridge(object):
         header.stamp = rospy.Time.now()
         header.frame_id = '/world'
         cloud = pcl2.create_cloud_xyz32(header, data['obstacles'])
+        rospy.loginfo("obstacles msg")
         self.publishers['obstacle_points'].publish(cloud)
 
     def publish_lidar(self, data):
+        rospy.loginfo("lidar msg")
         self.publishers['lidar'].publish(self.create_point_cloud_message(zip(data['lidar_x'], data['lidar_y'], data['lidar_z'])))
 
     def publish_traffic(self, data):
@@ -167,6 +170,7 @@ class Bridge(object):
         header.stamp = rospy.Time.now()
         header.frame_id = '/world'
         lights.lights = [self.create_light(*e) for e in zip(x, y, z, yaw, status)]
+        rospy.loginfo("trafficlights msg")
         self.publishers['trafficlights'].publish(lights)
 
     def publish_dbw_status(self, data):
@@ -181,6 +185,7 @@ class Bridge(object):
         image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="rgb8")
         image_message.header.stamp = rospy.Time.now()
         self.last_image = rospy.Time.now()
+        rospy.loginfo("image msg")
         self.publishers['image'].publish(image_message)
 
     def callback_steering(self, data):
