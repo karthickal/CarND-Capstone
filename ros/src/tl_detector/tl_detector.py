@@ -232,6 +232,7 @@ class TLDetector(object):
         rospy.loginfo("tl-light msg: " + str(msg.header.seq))
         self.lights = msg.lights
 
+    image_processed = False
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
             of the waypoint closest to the red light's stop line to /traffic_waypoint
@@ -249,11 +250,16 @@ class TLDetector(object):
             rospy.loginfo("skipping old image: " + str(msg.header.seq))
             return
 
+        self.image_processed = False
         self.update_lights()
 
     def update_lights(self):
         if not self.pose or not self.camera_image:
             rospy.logwarn('state missing for light update')
+            return
+
+        if self.image_processed:
+            rospy.logwarn('image already processed')
             return
 
         if (self.pose.header.stamp - self.camera_image.header.stamp).nsecs > 200000000:
@@ -267,6 +273,9 @@ class TLDetector(object):
             of times till we start using it. Otherwise the previous stable state is
             used.
             '''
+
+        self.image_processed = True
+
         if self.state != state:
             self.state_count = 0
             self.state = state
