@@ -198,7 +198,6 @@ class TLDetector(object):
         :param msg: the incoming message
         :return: None
         """
-        rospy.loginfo("tl-pos msg")
         self.pose = msg
         self.update_lights()
 
@@ -208,7 +207,6 @@ class TLDetector(object):
         :param waypoints: the incoming message
         :return: None
         """
-        rospy.loginfo("tl-base waypoint msg")
         self.base_waypoints = waypoints
         self.load_traffic_map()
 
@@ -218,7 +216,6 @@ class TLDetector(object):
         :param msg: the incoming message
         :return: None
         """
-        rospy.loginfo("tl-light msg: " + str(msg.header.seq))
         self.lights = msg.lights
 
     image_processed = False
@@ -243,12 +240,14 @@ class TLDetector(object):
             return
 
         if self.image_processed:
-            rospy.logwarn('image already processed')
+            rospy.logdebug('image already processed')
             return
 
         if (self.pose.header.stamp - self.camera_image.header.stamp).nsecs > 200000000:
             rospy.loginfo("skipping light update - image and position not in synch")
+            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
             return
+
         rospy.loginfo("Updating traffic light")
         light_wp, state = self.process_traffic_lights()
         '''
