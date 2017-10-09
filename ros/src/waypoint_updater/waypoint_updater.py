@@ -158,7 +158,6 @@ class WaypointUpdater(object):
         # limit publishing to 30 per second
         rate = rospy.Rate(30)
         while not rospy.is_shutdown():
-            rate.sleep()
 
             # check if states are available
             if self.base_waypoints is None or self.pose is None:
@@ -187,8 +186,12 @@ class WaypointUpdater(object):
             # get the lane object
             lane = self.__get_lane(header, next_waypoints)
 
+            #Best guarantee of rate control here.
+            rate.sleep()
+            
             # publish the waypoints
             self.final_waypoints_pub.publish(lane)
+
 
             # save the last
             self.last_waypoint = closest_idx
