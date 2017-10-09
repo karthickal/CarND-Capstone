@@ -24,9 +24,9 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 25  # Number of waypoints we will publish. You can change this number
-ONE_MPH = 0.44704
+KPH_MPS = 0.277778 # change from 1 KPH to 1 MPH
 WAIT_TIME = 10.0
-SAFE_ACCEL = 5.0
+SAFE_ACCEL = 1.0
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -34,7 +34,6 @@ class WaypointUpdater(object):
         Initialize the node, states and params. Set callbacks for topics.
         """
         rospy.init_node('waypoint_updater')
-        # rospy.loginfo("WaypointUpdater: Initialized.")
 
         # register the subscribers
         self.curr_pose_sub = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
@@ -45,22 +44,25 @@ class WaypointUpdater(object):
         # create the publisher
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # initialize states and params
+        # initialize track states
         self.base_waypoints = None
         self.pose = None
-        self.max_speed = rospy.get_param('~velocity', 10.0)
         self.last_waypoint = None
-        self.pose_received_time = None
-        self.traffic_received_time = None
         self.traffic_wp_ind = None
         self.current_speed = 0.0
 
-        self.braking_distance = self.max_speed * 2
-        self.slowdown_speed = 5 * ONE_MPH
-        self.apply_brake = False
-        self.brake_coeff = 0.0
-        self.traffic_dist = 0.0
+        # set parameters
+        self.max_vel = rospy.get_param('~velocity', 40.0)
+        self.braking_distance = self.max_vel * 2
+        self.creep_speed = 8.0 * KPH_MPS
+        self.stop_distance = 5.0
 
+        # set logs and flags
+        self.pose_received_time = None
+        self.traffic_received_time = None
+        self.apply_brake = False
+
+        # start the loop
         self.loop()
 
     def __is_behind(self, pose, target_wp):
@@ -132,16 +134,13 @@ class WaypointUpdater(object):
         return closest_index
 
     def __get_traffic_wp(self, closest_index):
-        '''
+        """
         To get a valid traffic waypoint index ahead of the car
         :param closest_index: the index of the waypoint near the car
         :return: the traffic waypoint index; -1 if no traffic waypoints ahead
-        '''
-
+        """
         # check if we received a traffic waypoint index
         if self.traffic_wp_ind is not None and  self.traffic_wp_ind != -1:
-            # check if the traffic index is still valid and not old
-            # if (rospy.Time.now().to_sec() - self.traffic_received_time) <= WAIT_TIME:
             # check if the traffic index is ahead of the planned route
             for i in range(LOOKAHEAD_WPS):
                 new_index = (i + closest_index) % len(self.base_waypoints)
@@ -152,18 +151,25 @@ class WaypointUpdater(object):
         return -1
 
     def loop(self):
-        rate = rospy.Rate(10)
-
+        """
+        Loop to publish the waypoints and recommended speed
+        :return: None
+        """
+        # limit publishing to 30 per second
+        rate = rospy.Rate(30)
         while not rospy.is_shutdown():
             rate.sleep()
 
+            # check if states are available
             if self.base_waypoints is None or self.pose is None:
                 continue
 
+            # get the current pose of the car
             pose = self.pose.pose
             header = self.pose.header
+
+            # get the closest waypoint to the car's position
             closest_idx = self.__get_closest_waypoint(pose)
-            closest_wp = self.base_waypoints[closest_idx % len(self.base_waypoints)]
             last_index = closest_idx + LOOKAHEAD_WPS
 
             # get the traffic waypoint index
@@ -172,40 +178,19 @@ class WaypointUpdater(object):
             # check if car has to brake
             if traffic_wp_ind != -1 and traffic_wp_ind is not None:
                 self.apply_brake = True
-
-                self.brake_coeff = self.current_speed / self.braking_distance
-                    # rospy.loginfo("Coeff {} curr speed {}".format(self.brake_coeff, self.current_speed))
-                    # traffic_wp = self.base_waypoints[traffic_wp_ind % len(self.base_waypoints)]
-                    # stop_distance = self.euclidean_distance(pose.position,
-                    #                                         traffic_wp.pose.pose.position)
-                    # self.traffic_dist = stop_distance
-                    # rospy.loginfo("Stop distance is {}".format(stop_distance))
-                    # if stop_distance < 0.05:
-                    #     self.brake_coeff = float('inf')
-                    # else:
-                    #     self.brake_coeff = self.current_speed / stop_distance
             else:
                 self.apply_brake = False
-                self.brake_coeff = 0.0
-                # self.traffic_dist = 0.0
 
             # generate the next set of waypoints and set the speed for the waypoints
             next_waypoints = self.__generate_next_waypoints(pose, self.base_waypoints, closest_idx, last_index, traffic_wp_ind)
-            # rospy.loginfo("Speed for waypoint {} is {}".format(closest_idx, next_waypoints[0].twist.twist.linear.x))
-
-            # if traffic_wp_ind != -1 and traffic_wp_ind is not None:
-        #     j = 0
-        #     rospy.loginfo("Logging Speed when car is at {}".format(self.current_speed))
-        #     for wp in next_waypoints:
-        #         rospy.loginfo("Speed at {} is {}".format((closest_idx+j)%len(self.base_waypoints), wp.twist.twist.linear.x))
-        #         j = j +1
-            #     rospy.signal_shutdown("Debug")
 
             # get the lane object
             lane = self.__get_lane(header, next_waypoints)
 
             # publish the waypoints
             self.final_waypoints_pub.publish(lane)
+
+            # save the last
             self.last_waypoint = closest_idx
         else:
             rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
@@ -232,20 +217,18 @@ class WaypointUpdater(object):
         :return: the list of target waypoints with smooth speed
         """
 
+        # check if waypoints is valid
         if waypoints is None:
             return waypoints
 
         # get the current state
         current_speed = self.current_speed
         brake = self.apply_brake
-        speed_limit = self.max_speed * ONE_MPH
-
+        speed_limit = self.max_vel * KPH_MPS
         next_waypoints = []
+
+        # if braking is not required; set incremental speeds with safe acceleration
         if not brake:
-            # rospy.loginfo("Not Braking")
-            # if self.traffic_received_time is not None:
-            #     if rospy.Time().now().to_sec() - self.traffic_received_time < 2.0:
-            #         speed_limit = speed_limit * 0.5
             for i in range(closest_idx, last_idx):
                 wp = waypoints[i%len(self.base_waypoints)]
                 current_speed = min(current_speed + SAFE_ACCEL, speed_limit)
@@ -253,30 +236,41 @@ class WaypointUpdater(object):
                 next_waypoints.append(wp)
             return next_waypoints
 
+        # if braking is required then validate traffic waypoint
         if traffic_idx == -1:
             rospy.logwarn("WaypointUpdater: Trying to brake while there is no traffic signal")
             return []
 
+        # calculate the distance under which braking has to be done and the braking power
         traffic_wp = self.base_waypoints[traffic_idx%len(self.base_waypoints)]
-        traffic_idx_found = False
+        stop_distance = self.euclidean_distance(pose.position, traffic_wp.pose.pose.position)
+        brake_coeff = min(stop_distance, self.braking_distance) / self.current_speed
 
+        # set decremental speeds based on the distance from stop line
+        traffic_idx_found = False
         for i in range(closest_idx, last_idx):
             idx = i%len(self.base_waypoints)
             wp = waypoints[idx]
             if not traffic_idx_found:
                 wp_distance = self.euclidean_distance(wp.pose.pose.position, traffic_wp.pose.pose.position)
+                # if traffic waypoint index set speed to 0
                 if idx == traffic_idx:
                     self.set_waypoint_velocity(wp, 0)
                     traffic_idx_found = True
+                # if distance is greater than mimimum stopping distance continue accelerating
                 elif wp_distance > self.braking_distance:
-                    current_speed = min(current_speed + SAFE_ACCEL, speed_limit)
+                    current_speed = min(current_speed+SAFE_ACCEL, speed_limit)
                     self.set_waypoint_velocity(wp, current_speed)
                 else:
-                    decelerate = self.brake_coeff * (self.braking_distance - wp_distance)
-                    # rospy.loginfo("decelerate is {}".format(decelerate))
-                    rec_speed = min(self.slowdown_speed, current_speed - decelerate)
+                    # if distance is greater than stop distance creep along
+                    if wp_distance > self.stop_distance:
+                        rec_speed = self.creep_speed
+                    else:
+                        # reduce speed based on distance from stop line
+                        decelerate = brake_coeff * (self.braking_distance - wp_distance)
+                        rec_speed = self.current_speed - decelerate
                     self.set_waypoint_velocity(wp, rec_speed)
-            else:
+            else: # set speed as 0 for all waypoints after stop line
                 self.set_waypoint_velocity(wp, 0)
 
             next_waypoints.append(wp)
@@ -311,10 +305,7 @@ class WaypointUpdater(object):
         :return: None
         '''
         self.traffic_wp_ind = msg.data
-        # set received time so we will know when the car can move
-        if self.traffic_wp_ind != -1:
-            self.traffic_received_time = rospy.Time.now().to_sec()
-        # rospy.loginfo("WaypointUpdater: Received Traffic Light Waypoint at {}".format(self.traffic_wp_ind))
+        self.traffic_received_time = rospy.Time.now().to_sec()
 
     def velocity_cb(self, msg):
         """
@@ -334,12 +325,12 @@ class WaypointUpdater(object):
 
     def set_waypoint_velocity(self, waypoint, velocity):
         """
-        Sets a the desired velocity for the waypoint. Thresholds the max value to the speed limit
+        Sets the desired velocity for the waypoint. Thresholds the max value to the speed limit
         :param waypoint: the waypoint to set the speed for
         :param velocity: the desired speed
         :return: None
         """
-        safe_speed = min(velocity, self.max_speed * ONE_MPH)
+        safe_speed = min(velocity, self.max_vel * KPH_MPS)
         waypoint.twist.twist.linear.x = safe_speed
 
     def distance(self, waypoints, wp1, wp2):
