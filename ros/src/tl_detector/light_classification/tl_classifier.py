@@ -7,6 +7,7 @@ import rospy
 import scipy.misc
 import model_trainer
 import numpy as np
+import os
 
 class TLClassifier(object):
     def __init__(self):
@@ -21,9 +22,10 @@ class TLClassifier(object):
         # conv layers
         model_output = model_trainer.layers(image_input_layer, 3, training_mode)
 
+        self.model_folder = rospy.get_param("/traffic_light_model_directory")
 
         saver = tf.train.Saver()
-        saver.restore(self.sess, "/home/student/VMDrive/CarND-Capstone/ros/src/tl_detector/light_classification/model.ckpt")
+        saver.restore(self.sess, self.model_folder + "model.ckpt")
 
         for layer in [tensor.name for tensor in tf.get_default_graph().as_graph_def().node]:
             rospy.loginfo(str(layer))
@@ -47,8 +49,10 @@ class TLClassifier(object):
         if light_state != 4 and detected_light_state != light_state:
             image_id = random.randrange(0, 1000000)
             # save training image
-            directory = "/home/student/VMDrive/missed/t"+str(light_state)+"/image"
-            image_name = directory + str(image_id) + ".jpg"
+            directory = self.model_folder + "missed/t"+str(light_state)+"/"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            image_name = directory + "image" + str(image_id) + ".jpg"
             cv2.imwrite(image_name, image)
             rospy.loginfo('savingImage incorrect:' + image_name)
 
