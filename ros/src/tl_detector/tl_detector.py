@@ -25,7 +25,6 @@ class TLDetector(object):
         rospy.init_node('tl_detector')
 
         self.pose = None
-        self.waypoints = None
         self.base_waypoints = None
         self.camera_image = None
         self.lights = []

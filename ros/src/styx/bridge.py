@@ -131,7 +131,6 @@ class Bridge(object):
         position = (data['x'], data['y'], data['z'])
         orientation = tf.transformations.quaternion_from_euler(0, 0, math.pi * data['yaw']/180.)
         self.broadcast_transform("base_link", position, orientation)
-        rospy.logwarn("odometry msgs")
         self.publishers['current_pose'].publish(pose)
         self.vel = data['velocity']* 0.44704
         self.angular = self.calc_angular(data['yaw'] * math.pi/180.)
@@ -140,7 +139,6 @@ class Bridge(object):
 
     def publish_controls(self, data):
         steering, throttle, brake = data['steering_angle'], data['throttle'], data['brake']
-        rospy.logwarn("constrols msgs")
         self.publishers['steering_report'].publish(self.create_steer(steering))
         self.publishers['throttle_report'].publish(self.create_float(throttle))
         self.publishers['brake_report'].publish(self.create_float(brake))
@@ -153,42 +151,33 @@ class Bridge(object):
         header.stamp = rospy.Time.now()
         header.frame_id = '/world'
         cloud = pcl2.create_cloud_xyz32(header, data['obstacles'])
-        rospy.logwarn("obstacles msg")
         self.publishers['obstacle_points'].publish(cloud)
 
     def publish_lidar(self, data):
-        rospy.logwarn("lidar msg")
         self.publishers['lidar'].publish(self.create_point_cloud_message(zip(data['lidar_x'], data['lidar_y'], data['lidar_z'])))
 
-    light_seq = 0
     def publish_traffic(self, data):
         x, y, z = data['light_pos_x'], data['light_pos_y'], data['light_pos_z'],
         yaw = [math.atan2(dy, dx) for dx, dy in zip(data['light_pos_dx'], data['light_pos_dy'])]
         status = data['light_state']
 
-        self.light_seq += 1
         lights = TrafficLightArray()
         header = Header()
         header.stamp = rospy.Time.now()
         header.frame_id = '/world'
-        header.seq = self.light_seq
         lights.lights = [self.create_light(*e) for e in zip(x, y, z, yaw, status)]
-        rospy.logwarn("trafficlights msg: " + str(self.light_seq))
         self.publishers['trafficlights'].publish(lights)
 
     def publish_dbw_status(self, data):
         self.publishers['dbw_status'].publish(Bool(data))
 
-    img_seq = 0
+
     def publish_camera(self, data):
         imgString = data["image"]
         image = PIL_Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
-        self.img_seq += 1
         image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="rgb8")
         image_message.header.stamp = rospy.Time.now()
-        image_message.header.seq = self.img_seq
-        rospy.logwarn("image msg: " + str(self.img_seq))
         self.publishers['image'].publish(image_message)
 
     def callback_steering(self, data):
