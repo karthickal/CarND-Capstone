@@ -202,6 +202,7 @@ class TLDetector(object):
         """
         rospy.loginfo("tl-pos msg")
         self.pose = msg
+        self.update_lights()
 
     def waypoints_cb(self, waypoints):
         """
@@ -240,24 +241,32 @@ class TLDetector(object):
         if not self.started:
             return
 
+        self.has_image = True
+        self.camera_image = msg
+
         #skip old images
         if (self.pose.header.stamp - msg.header.stamp).nsecs > 200000000:
             rospy.loginfo("skipping old image: " + str(msg.header.seq))
             return
 
-        rospy.loginfo("Using image: " + str(msg.header.seq))
+        self.update_lights()
 
-        self.has_image = True
-        self.camera_image = msg
-        self.image_pose = self.pose
+    def update_lights(self):
+        if not self.pose or not self.camera_image:
+            rospy.logwarn('state missing for light update')
+            return
+
+        if (self.pose.header.stamp - self.camera_image.header.stamp).nsecs > 200000000:
+            rospy.loginfo("skipping light update - image and position not in synch")
+            return
+        rospy.loginfo("Updating traffic light")
         light_wp, state = self.process_traffic_lights()
-
         '''
-        Publish upcoming red lights at camera frequency.
-        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
-        of times till we start using it. Otherwise the previous stable state is
-        used.
-        '''
+            Publish upcoming red lights at camera frequency.
+            Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+            of times till we start using it. Otherwise the previous stable state is
+            used.
+            '''
         if self.state != state:
             self.state_count = 0
             self.state = state
