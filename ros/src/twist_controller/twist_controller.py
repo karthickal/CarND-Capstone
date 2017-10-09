@@ -1,6 +1,6 @@
 """Controller class to handle throttle, brake and steering"""
 
-__author__ = "Reza Arza, Thomas Woodside"
+__author__ = "Reza Arfa, Thomas Woodside"
 
 import rospy
 from yaw_controller import YawController
@@ -16,7 +16,7 @@ class Controller(object):
     Controller class to handle throttle, brake and steering
     """
 
-    def __init__(self, throttle_pid_params, brake_pid_params, state_params):
+    def __init__(self, pid_params, state_params):
         """
 
         :param throttle_pid_params: Params for the throttle PID
@@ -40,10 +40,7 @@ class Controller(object):
         self.prev_time = None
 
         # init controllers
-        self.acceleration_controller = PID(throttle_pid_params["kp"], throttle_pid_params["ki"],
-                                           throttle_pid_params["kd"])
-        self.brake_controller = PID(brake_pid_params["kp"], brake_pid_params["ki"],
-                                    brake_pid_params["kd"])
+        self.acceleration_controller = PID(pid_params["kp"], pid_params["ki"], pid_params["kd"])
 
         # init yaw controller.
         self.yaw_control = YawController(self.wheel_base, self.steer_ratio, 0., self.max_lat_accel,
@@ -72,22 +69,18 @@ class Controller(object):
             # calculate error in velocity and sample time
             delta_v = proposed_linear_velocity - current_linear_velocity
             delta_t = t - self.prev_time
+	    self.prev_time = t
 
             throttle, brake = 0., 0.
-            # if error in velocty is positive; set the throttle component
-            if delta_v >= 0.0:
-                throttle = self.acceleration_controller.step(delta_v, delta_t)
-                throttle = min(throttle, self.accel_limit)
-            else:
-                # if velocity error is between 0 and 0.2 ignore as this would eventually stop the car
-                if abs(delta_v) <= self.brake_deadband:
-                    brake = 0.0
-                else:
-                    # get the braking required to reduce the speed
-                    target_brake = abs(delta_v) * self.vehicle_mass * self.wheel_radius
-                    rec_brake = self.brake_controller.step(target_brake, delta_t)
-                    brake = min(rec_brake, self.max_brake)
 
+	    torque = delta_v * self.vehicle_mass * self.wheel_radius
+            acc = self.acceleration_controller.step(torque, delta_t)
+	    if acc > 0.:
+                throttle = min(acc, self.accel_limit)
+            else:
+		brake = min(abs(acc) + self.brake_deadband, self.max_brake)
+
+	    
             # get the target steering
             steering = self.yaw_control.get_steering(proposed_linear_velocity, proposed_angular_velocity,
                                                      current_linear_velocity)
@@ -99,3 +92,8 @@ class Controller(object):
 
         # return the target values
         return throttle, brake, steering
+
+
+
+
+
