@@ -123,7 +123,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
 
         for batch_x, batch_y in get_batches_fn(batch_size):
             _, loss = sess.run([train_op, cross_entropy_loss],
-               feed_dict={input_image: batch_x, learning_rate: 0.00001, correct_label: batch_y, training_mode: True})
+               feed_dict={input_image: batch_x, learning_rate: 0.000001, correct_label: batch_y, training_mode: True})
             #print("batch loss: " + str(loss) + " count: " + str(len(batch_x)))
 
             num_samples += len(batch_x)
@@ -147,7 +147,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
 def run():
     num_classes = 3
     image_shape = (128, 128)
-    epochs = 20
+    epochs = 50
     batch_size = 100
     data_dir = './data'
     test_data_dir = './fulldata'
