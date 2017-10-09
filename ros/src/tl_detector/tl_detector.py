@@ -238,10 +238,10 @@ class TLDetector(object):
 
         #skip old images
         if (self.pose.header.stamp - msg.header.stamp).nsecs > 200000000:
-            rospy.loginfo("skipping old image")
+            rospy.loginfo("skipping old image: " + str(msg.header.seq))
             return
 
-        rospy.loginfo("Using image")
+        rospy.loginfo("Using image: " + str(msg.header.seq))
 
         self.has_image = True
         self.camera_image = msg
