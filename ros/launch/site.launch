@@ -16,7 +16,7 @@
     <param name="traffic_light_config" textfile="$(find tl_detector)/site_traffic_light_config.yaml" />
 
     <!--Traffic Light Model Location -->
-    <param name="traffic_light_model_directory" value="$(find tl_detector)/light_classifier/" type="str" />
+    <param name="traffic_light_model_directory" value="$(find tl_detector)/light_classification/" type="str" />
 
     <!--Traffic Light Detector Node -->
     <include file="$(find tl_detector)/launch/tl_detector_site.launch"/>
