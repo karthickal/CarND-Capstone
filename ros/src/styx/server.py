@@ -4,6 +4,7 @@ import socketio
 import eventlet
 import eventlet.wsgi
 import time
+import rospy
 from flask import Flask, render_template
 
 from bridge import Bridge
@@ -28,6 +29,7 @@ bridge = Bridge(conf, send)
 
 @sio.on('telemetry')
 def telemetry(sid, data):
+    rospy.loginfo("telemetry msg")
     global dbw_enable
     if data["dbw_enable"] != dbw_enable:
         dbw_enable = data["dbw_enable"]
@@ -39,22 +41,27 @@ def telemetry(sid, data):
 
 @sio.on('control')
 def control(sid, data):
+    rospy.loginfo("control msg")
     bridge.publish_controls(data)
 
 @sio.on('obstacle')
 def obstacle(sid, data):
+    rospy.loginfo("obstacle msg")
     bridge.publish_obstacles(data)
 
 @sio.on('lidar')
 def obstacle(sid, data):
+    rospy.loginfo("lidar msg")
     bridge.publish_lidar(data)
 
 @sio.on('trafficlights')
 def trafficlights(sid, data):
+    rospy.loginfo("trafficlights msg")
     bridge.publish_traffic(data)
 
 @sio.on('image')
 def image(sid, data):
+    rospy.loginfo("image msg")
     bridge.publish_camera(data)
 
 if __name__ == '__main__':
