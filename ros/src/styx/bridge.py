@@ -53,7 +53,6 @@ class Bridge(object):
         self.subscribers = [rospy.Subscriber(e.topic, TYPE[e.type], self.callbacks[e.topic])
                             for e in conf.subscribers]
 
-        self.last_image = rospy.Time.now()
         self.publishers = {e.name: rospy.Publisher(e.topic, TYPE[e.type], queue_size=1)
                            for e in conf.publishers}
 
@@ -175,10 +174,6 @@ class Bridge(object):
 
 
     def publish_camera(self, data):
-        if (self.last_image - rospy.Time.now()).nsecs < 200000000:
-            rospy.loginfo("skipping image message")
-            return
-
         imgString = data["image"]
         image = PIL_Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
