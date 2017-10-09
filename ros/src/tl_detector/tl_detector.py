@@ -32,7 +32,6 @@ class TLDetector(object):
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.base_waypoints_cb)
-        sub4 = rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb, buff_size=2000000, queue_size=1)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -203,15 +202,6 @@ class TLDetector(object):
         rospy.loginfo("tl-pos msg")
         self.pose = msg
         self.update_lights()
-
-    def waypoints_cb(self, waypoints):
-        """
-        Callback to handle incoming waypoint messages.
-        :param waypoints: the incoming message
-        :return: None
-        """
-        rospy.loginfo("tl-waypoint msg")
-        self.waypoints = waypoints
 
     def base_waypoints_cb(self, waypoints):
         """
