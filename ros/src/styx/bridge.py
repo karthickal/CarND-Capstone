@@ -160,17 +160,20 @@ class Bridge(object):
         rospy.logwarn("lidar msg")
         self.publishers['lidar'].publish(self.create_point_cloud_message(zip(data['lidar_x'], data['lidar_y'], data['lidar_z'])))
 
+    light_seq = 0
     def publish_traffic(self, data):
         x, y, z = data['light_pos_x'], data['light_pos_y'], data['light_pos_z'],
         yaw = [math.atan2(dy, dx) for dx, dy in zip(data['light_pos_dx'], data['light_pos_dy'])]
         status = data['light_state']
 
+        self.light_seq += 1
         lights = TrafficLightArray()
         header = Header()
         header.stamp = rospy.Time.now()
         header.frame_id = '/world'
+        header.seq = self.light_seq
         lights.lights = [self.create_light(*e) for e in zip(x, y, z, yaw, status)]
-        rospy.logwarn("trafficlights msg")
+        rospy.logwarn("trafficlights msg: " + str(self.light_seq))
         self.publishers['trafficlights'].publish(lights)
 
     def publish_dbw_status(self, data):
@@ -185,7 +188,6 @@ class Bridge(object):
         image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="rgb8")
         image_message.header.stamp = rospy.Time.now()
         image_message.header.seq = self.img_seq
-        self.last_image = rospy.Time.now()
         rospy.logwarn("image msg: " + str(self.img_seq))
         self.publishers['image'].publish(image_message)
 

@@ -200,6 +200,7 @@ class TLDetector(object):
         :param msg: the incoming message
         :return: None
         """
+        rospy.loginfo("tl-pos msg")
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
@@ -208,6 +209,7 @@ class TLDetector(object):
         :param waypoints: the incoming message
         :return: None
         """
+        rospy.loginfo("tl-waypoint msg")
         self.waypoints = waypoints
 
     def base_waypoints_cb(self, waypoints):
@@ -216,6 +218,7 @@ class TLDetector(object):
         :param waypoints: the incoming message
         :return: None
         """
+        rospy.loginfo("tl-base waypoint msg")
         self.base_waypoints = waypoints
         self.load_traffic_map()
 
@@ -225,6 +228,7 @@ class TLDetector(object):
         :param msg: the incoming message
         :return: None
         """
+        rospy.loginfo("tl-light msg: " + str(msg.header.seq))
         self.lights = msg.lights
 
     def image_cb(self, msg):
