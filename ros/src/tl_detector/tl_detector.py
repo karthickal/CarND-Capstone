@@ -235,7 +235,7 @@ class TLDetector(object):
         self.update_lights()
 
     def update_lights(self):
-        if not self.pose or not self.camera_image:
+        if (not self.pose) or (not self.camera_image):
             rospy.logwarn('state missing for light update')
             return
 
@@ -245,7 +245,6 @@ class TLDetector(object):
 
         if (self.pose.header.stamp - self.camera_image.header.stamp).nsecs > 200000000:
             rospy.loginfo("skipping light update - image and position not in synch")
-            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
             return
 
         rospy.loginfo("Updating traffic light")
