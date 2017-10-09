@@ -199,7 +199,8 @@ class TLDetector(object):
         :return: None
         """
         self.pose = msg
-        self.update_lights()
+        if not self.image_processed:
+            self.update_lights()
 
     def base_waypoints_cb(self, waypoints):
         """
