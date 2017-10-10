@@ -233,7 +233,8 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
         """
         if self.pose is None:
-            return
+            rospy.loginfo("Got camera image before Pose")
+            return None
 
         self.has_image = True
         self.camera_image = msg
