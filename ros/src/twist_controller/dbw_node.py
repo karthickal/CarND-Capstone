@@ -2,7 +2,7 @@
 
 """ The DBW node"""
 
-__author__ = "Reza Arza, Thomas Woodside"
+__author__ = "Reza Arfa, Thomas Woodside"
 
 import rospy
 from std_msgs.msg import Bool
@@ -66,13 +66,13 @@ class DBWNode(object):
 
         # parameters for throttle controller
         throttle_pid_params = {}
-        throttle_pid_params["kp"] = 1.0
+        throttle_pid_params["kp"] = 1
         throttle_pid_params["ki"] = 0.0
-        throttle_pid_params["kd"] = 0.0
+        throttle_pid_params["kd"] = 0
 
         # parameters for brake controller
         brake_pid_params = {}
-        brake_pid_params["kp"] = 0.8
+        brake_pid_params["kp"] = 0.6
         brake_pid_params["ki"] = 0.0
         brake_pid_params["kd"] = 0.0
 
@@ -104,7 +104,7 @@ class DBWNode(object):
         Publish the target states
         :return: None
         """
-        rate = rospy.Rate(10)  # 50Hz
+        rate = rospy.Rate(50)  # 50Hz
         while not rospy.is_shutdown():
             if (not self.twist_cmd) or (not self.current_velocity):  # first commands are not published yet.
                 continue

@@ -26,7 +26,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 LOOKAHEAD_WPS = 25  # Number of waypoints we will publish. You can change this number
 KPH_MPS = 0.277778 # change from 1 KPH to 1 MPH
 WAIT_TIME = 10.0
-SAFE_ACCEL = 1.0
+SAFE_ACCEL = 1
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -52,9 +52,9 @@ class WaypointUpdater(object):
         self.current_speed = 0.0
 
         # set parameters
-        self.max_vel = rospy.get_param('~velocity', 40.0)
+        self.max_vel = rospy.get_param('~velocity', 20.0)
         self.braking_distance = self.max_vel * 2
-        self.creep_speed = 8.0 * KPH_MPS
+        self.creep_speed = 5.0 * KPH_MPS
         self.stop_distance = 5.0
 
         # set logs and flags
@@ -158,7 +158,6 @@ class WaypointUpdater(object):
         # limit publishing to 30 per second
         rate = rospy.Rate(30)
         while not rospy.is_shutdown():
-            rate.sleep()
 
             # check if states are available
             if self.base_waypoints is None or self.pose is None:
@@ -186,12 +185,14 @@ class WaypointUpdater(object):
 
             # get the lane object
             lane = self.__get_lane(header, next_waypoints)
-
+            
             # publish the waypoints
             self.final_waypoints_pub.publish(lane)
 
             # save the last
             self.last_waypoint = closest_idx
+
+            rate.sleep()
         else:
             rospy.logwarn("Original waypoints not yet loaded. Cannot publish final waypoints.")
 
@@ -259,7 +260,7 @@ class WaypointUpdater(object):
                     traffic_idx_found = True
                 # if distance is greater than mimimum stopping distance continue accelerating
                 elif wp_distance > self.braking_distance:
-                    current_speed = min(current_speed+SAFE_ACCEL, speed_limit)
+                    current_speed = min(current_speed+SAFE_ACCEL*0.25, speed_limit)
                     self.set_waypoint_velocity(wp, current_speed)
                 else:
                     # if distance is greater than stop distance creep along
