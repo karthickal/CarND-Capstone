@@ -46,22 +46,25 @@ class TLClassifier(object):
                            {self.training_mode: False, self.image_tensor: [image]})
         detected_light_state = int(np.array(results[0].indices).flatten()[0])
 
-        if light_state != 4 and detected_light_state != light_state:
-            image_id = random.randrange(0, 1000000)
-            # save training image
-            directory = self.model_folder + "missed/t"+str(light_state)+"/"
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            image_name = directory + "image" + str(image_id) + ".jpg"
-            cv2.imwrite(image_name, image)
-            rospy.loginfo('savingImage incorrect:' + image_name)
+        # if light_state != 4 and detected_light_state != light_state:
+        #     image_id = random.randrange(0, 1000000)
+        #     # save training image
+        #     directory = self.model_folder + "missed/t"+str(light_state)+"/"
+        #     if not os.path.exists(directory):
+        #         os.makedirs(directory)
+        #     image_name = directory + "image" + str(image_id) + ".jpg"
+        #     cv2.imwrite(image_name, image)
+        #     rospy.loginfo('savingImage incorrect:' + image_name)
 
         if detected_light_state == 0:
             return TrafficLight.RED
         if detected_light_state == 1:
+            rospy.loginfo("Returning Yellow")
             return TrafficLight.YELLOW
         if detected_light_state == 2:
+            rospy.loginfo("Returning Green")
             return TrafficLight.GREEN
+        rospy.loginfo("Returning Unknown")
         return TrafficLight.UNKNOWN
 
     def close(self):
