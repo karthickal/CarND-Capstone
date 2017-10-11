@@ -131,7 +131,6 @@ class Bridge(object):
         position = (data['x'], data['y'], data['z'])
         orientation = tf.transformations.quaternion_from_euler(0, 0, math.pi * data['yaw']/180.)
         self.broadcast_transform("base_link", position, orientation)
-
         self.publishers['current_pose'].publish(pose)
         self.vel = data['velocity']* 0.44704
         self.angular = self.calc_angular(data['yaw'] * math.pi/180.)
@@ -172,12 +171,13 @@ class Bridge(object):
     def publish_dbw_status(self, data):
         self.publishers['dbw_status'].publish(Bool(data))
 
+
     def publish_camera(self, data):
         imgString = data["image"]
         image = PIL_Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
-
         image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="rgb8")
+        image_message.header.stamp = rospy.Time.now()
         self.publishers['image'].publish(image_message)
 
     def callback_steering(self, data):

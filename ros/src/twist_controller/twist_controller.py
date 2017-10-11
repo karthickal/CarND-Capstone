@@ -92,8 +92,3 @@ class Controller(object):
 
         # return the target values
         return throttle, brake, steering
-
-
-
-
-

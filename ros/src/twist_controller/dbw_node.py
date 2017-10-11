@@ -98,7 +98,7 @@ class DBWNode(object):
         Publish the target states
         :return: None
         """
-        rate = rospy.Rate(10)  # 50Hz
+        rate = rospy.Rate(50)  # 50Hz
         while not rospy.is_shutdown():
             if (not self.twist_cmd) or (not self.current_velocity):  # first commands are not published yet.
                 continue

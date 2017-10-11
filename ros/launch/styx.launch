@@ -20,4 +20,8 @@
 
     <!--Traffic Light Locations and Camera Config -->
     <param name="traffic_light_config" textfile="$(find tl_detector)/sim_traffic_light_config.yaml" />
+
+    <!--Traffic Light Model Location -->
+    <param name="traffic_light_model_directory" value="$(find tl_detector)/light_classification/" type="str" />
+
 </launch>
