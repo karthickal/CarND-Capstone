@@ -26,7 +26,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 LOOKAHEAD_WPS = 25  # Number of waypoints we will publish. You can change this number
 KPH_MPS = 0.277778  # change from 1 KPH to 1 MPH
 WAIT_TIME = 10.0
-SAFE_ACCEL = 1.0
+SAFE_ACCEL = 1
 
 
 class WaypointUpdater(object):
@@ -187,7 +187,7 @@ class WaypointUpdater(object):
 
             # get the lane object
             lane = self.__get_lane(header, next_waypoints)
-
+            
             # publish the waypoints
             self.final_waypoints_pub.publish(lane)
 
