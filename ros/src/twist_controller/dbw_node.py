@@ -65,16 +65,10 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',  BrakeCmd, queue_size=1)
 
         # parameters for throttle controller
-        throttle_pid_params = {}
-        throttle_pid_params["kp"] = 1
-        throttle_pid_params["ki"] = 0.0
-        throttle_pid_params["kd"] = 0
-
-        # parameters for brake controller
-        brake_pid_params = {}
-        brake_pid_params["kp"] = 0.6
-        brake_pid_params["ki"] = 0.0
-        brake_pid_params["kd"] = 0.0
+        pid_params = {}
+        pid_params["kp"] = 5.0
+        pid_params["ki"] = 0.0
+        pid_params["kd"] = 0.001
 
         # state parameters for controller
         state_params = {}
@@ -89,7 +83,7 @@ class DBWNode(object):
         state_params["max_steer_angle"] = max_steer_angle
 
         # Create `TwistController` object
-        self.controller = Controller(throttle_pid_params, brake_pid_params, state_params)
+        self.controller = Controller(pid_params, state_params)
 
         # subscribe to `DBW status`->Bool, `current velocity`->TwistStamped, and `twist command`->TwistStamped
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_callback)
