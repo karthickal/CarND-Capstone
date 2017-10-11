@@ -21,18 +21,16 @@ VISIBLE_DISTANCE = 85.0
 
 class TLDetector(object):
     def __init__(self):
-
+        self.started = False
         rospy.init_node('tl_detector')
 
         self.pose = None
-        self.waypoints = None
         self.base_waypoints = None
         self.camera_image = None
         self.lights = []
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.base_waypoints_cb)
-        sub4 = rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -41,8 +39,8 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, buff_size=1000000, queue_size=1)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, buff_size=8000000, queue_size=1)
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -51,7 +49,7 @@ class TLDetector(object):
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
+
         self.listener = tf.TransformListener()
 
         # set defaults and params
@@ -61,6 +59,9 @@ class TLDetector(object):
         self.state_count = 0
         self.traffic_map = {}
 
+        self.light_classifier = TLClassifier()
+        self.started = True
+        self.image_processed = True
         rospy.spin()
 
     def distance(self, pose1, pose2):
@@ -199,14 +200,8 @@ class TLDetector(object):
         :return: None
         """
         self.pose = msg
-
-    def waypoints_cb(self, waypoints):
-        """
-        Callback to handle incoming waypoint messages.
-        :param waypoints: the incoming message
-        :return: None
-        """
-        self.waypoints = waypoints
+        if not self.image_processed:
+            self.update_lights()
 
     def base_waypoints_cb(self, waypoints):
         """
@@ -231,17 +226,41 @@ class TLDetector(object):
         Args:
             msg (Image): image from car-mounted camera
         """
+        if not self.started:
+            return
+
         self.has_image = True
         self.camera_image = msg
-        self.image_pose = self.pose
-        light_wp, state = self.process_traffic_lights()
 
+        self.image_processed = False
+        self.update_lights()
+
+    def update_lights(self):
+        if (not self.pose) or (not self.pose.pose) or (not self.camera_image):
+            rospy.logwarn('state missing for light update')
+            return
+
+        if self.image_processed:
+            rospy.logdebug('image already processed')
+            return
+
+        if (self.pose.header.stamp - self.camera_image.header.stamp).nsecs > 200000000:
+            rospy.logdebug("skipping light update - image and position not in synch")
+            return
+
+        #possible race condition here. Can have multiple threads hit this. I need to put a 2.7 compatable lock here.
+        self.image_processed = True
+        rospy.logdebug("Updating traffic light")
+        light_wp, state = self.process_traffic_lights()
         '''
-        Publish upcoming red lights at camera frequency.
-        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
-        of times till we start using it. Otherwise the previous stable state is
-        used.
-        '''
+            Publish upcoming red lights at camera frequency.
+            Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+            of times till we start using it. Otherwise the previous stable state is
+            used.
+            '''
+
+
+
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -349,7 +368,7 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
         # mycoords
         [top_x, top_y, bottom_x, bottom_y, center_x, center_y] = self.project_to_image_plane(light.pose.pose.position)
@@ -358,7 +377,7 @@ class TLDetector(object):
 
         # preprocess the image
         croppedImage = cv_image[top_y:bottom_y, top_x:bottom_x]
-        classifier_shape = (100, 100)
+        classifier_shape = (128, 128)
         final_image = scipy.misc.imresize(croppedImage, classifier_shape)
 
         # Get classification of the pre-processed image
@@ -374,7 +393,7 @@ class TLDetector(object):
         car_wp_idx, _ = self.get_closest_waypoint(self.pose.pose)
         traffic_pose, traffic_idx = self.get_closest_traffic_light(car_wp_idx)
         if traffic_idx != -1:
-            rospy.loginfo("TLDetector: Traffic Light at {}".format(traffic_idx))
+            rospy.logdebug("TLDetector: Traffic Light at {}".format(traffic_idx))
             light = self.get_closest_light(traffic_pose)
             state = self.get_light_state(light)
 
